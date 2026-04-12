@@ -1286,8 +1286,12 @@ static NSSize _computeScale(NSSize fs, NSSize bs)
         {
           if (_boundsMatrix == nil)
             {
-              CGFloat sx = _bounds.size.width  / _frame.size.width;
-              CGFloat sy = _bounds.size.height / _frame.size.height;
+              /* RB-G1: Guard against division by zero when the old frame
+                 has a zero dimension (e.g. during initial layout). */
+              CGFloat sx = (_frame.size.width > 0)
+                ? (_bounds.size.width  / _frame.size.width) : 1.0;
+              CGFloat sy = (_frame.size.height > 0)
+                ? (_bounds.size.height / _frame.size.height) : 1.0;
               
               newFrame.size = newSize;
 	      [self _setFrameAndClearAutoresizingError: newFrame];
@@ -2606,7 +2610,14 @@ static void autoresize(CGFloat oldContainerSize,
        * Now we draw this view.
        */
       [self _lockFocusInContext: context inRect: aRect];
-      [self drawRect: aRect];
+      /* TS-G8: Wrap drawRect: so that an exception restores the focus
+         stack before propagating. */
+      NS_DURING
+        [self drawRect: aRect];
+      NS_HANDLER
+        [self unlockFocusNeedsFlush: NO];
+        [localException raise];
+      NS_ENDHANDLER
       [self unlockFocusNeedsFlush: flush];
     }
 

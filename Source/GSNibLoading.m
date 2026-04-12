@@ -1350,8 +1350,10 @@ static BOOL _isInInterfaceBuilder = NO;
 	  aClass = NSClassFromString(className);
 	  if (aClass == nil)
 	    {
-	      [NSException raise: NSInternalInconsistencyException
-			  format: @"NSClassSwapper unable to find class '%@'", className];
+	      /* RB-G2: Fall back to NSObject instead of crashing when a
+	         nib references a class not present in this runtime. */
+	      NSLog(@"Warning: class '%@' not found, substituting NSObject", className);
+	      aClass = [NSObject class];
 	    }
 	}
     }

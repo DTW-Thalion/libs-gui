@@ -57,7 +57,9 @@
 
 #define		SANITY_CHECKS	0
 
-static BOOL     adding;
+/* TS-G9: Make thread-local to eliminate cross-thread sharing between
+   cacheAttributes() and unCacheAttributes(). */
+static _Thread_local BOOL adding = NO;
 
 /* When caching attributes we make a shallow copy of the dictionary cached,
  * so that it is immutable and safe to cache.

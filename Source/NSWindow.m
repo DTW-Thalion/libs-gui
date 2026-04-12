@@ -3244,7 +3244,17 @@ checkCursorRectanglesExited(NSView *theView,  NSEvent *theEvent, NSPoint lastPoi
 	}
 
       [pool drain];
-      RELEASE(self);
+      if (_f.is_released_when_closed)
+        {
+          /* TS-G5: Defer the release to the end of the current run loop
+             iteration so that notification observers still holding a
+             reference do not access a deallocated window. */
+          [self performSelector: @selector(release) withObject: nil afterDelay: 0];
+        }
+      else
+        {
+          RELEASE(self);
+        }
     }
 }
 

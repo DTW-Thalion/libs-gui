@@ -1269,7 +1269,7 @@ repd_for_rep(NSArray *_reps, NSImageRep *rep)
       if (NSEqualSizes(NSZeroSize, [self size]))
         [NSException raise: NSImageCacheException
 		    format: @"Cannot lock focus on image with size (0, 0)"];
-      
+
       if (imageRep == nil)
         imageRep = [self bestRepresentationForDevice: nil];
 
@@ -1280,7 +1280,12 @@ repd_for_rep(NSArray *_reps, NSImageRep *rep)
       imageRep = repd->rep;
 
       window = [(NSCachedImageRep *)imageRep window];
-      _lockedView = [window contentView];
+      /* TS-G6: Synchronize _lockedView manipulation to prevent races
+         when multiple threads draw the same image concurrently. */
+      @synchronized(self)
+      {
+        _lockedView = [window contentView];
+      }
       if (_lockedView == nil)
         {
           [NSException raise: NSImageCacheException
@@ -1290,7 +1295,7 @@ repd_for_rep(NSArray *_reps, NSImageRep *rep)
       // FIXME: This is needed to get image caching working while printing. A better solution
       // needs to remove the viewIsPrinting variable from NSView.
       [_lockedView _lockFocusInContext: [window graphicsContext] inRect: [_lockedView bounds]];
-      if (repd->bg == nil) 
+      if (repd->bg == nil)
         {
           NSRect fillrect = NSMakeRect(0, 0, _size.width, _size.height);
 
@@ -1300,15 +1305,15 @@ repd_for_rep(NSArray *_reps, NSImageRep *rep)
               /* With a Quartz-like alpha model, alpha can't be cleared
                  with a rectfill, so we need to clear the alpha channel
                  explictly. (A compositerect with NSCompositeCopy would
-                 be more efficient, but it doesn't seem like it's 
-                 implemented correctly in all backends yet (as of 
+                 be more efficient, but it doesn't seem like it's
+                 implemented correctly in all backends yet (as of
                  2002-08-23). Also, this will work with both the Quartz-
                  and DPS-model.) */
               NSRectFillUsingOperation(fillrect, NSCompositeClear);
             }
 
           repd->bg = [_color copy];
-      
+
           if ([repd->bg alphaComponent] == 1.0)
             {
               [imageRep setOpaque: YES];
@@ -1327,11 +1332,15 @@ repd_for_rep(NSArray *_reps, NSImageRep *rep)
 
 - (void) unlockFocus
 {
-  if (_lockedView != nil)
-    {
-      [_lockedView unlockFocus];
-      _lockedView = nil;
-    }
+  /* TS-G7: Synchronize _lockedView manipulation for thread safety. */
+  @synchronized(self)
+  {
+    if (_lockedView != nil)
+      {
+        [_lockedView unlockFocus];
+        _lockedView = nil;
+      }
+  }
 }
 
 /* Determine the number of color components in the device and
