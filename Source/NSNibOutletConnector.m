@@ -39,7 +39,9 @@
 {
   NS_DURING
     {
-      if (_src != nil)
+      /* RB-G4: Validate that _tag is non-nil and non-empty before
+         attempting to derive the setter selector. */
+      if (_src != nil && _tag != nil && [_tag length] > 0)
 	{
           NSString *selName;
           SEL sel;

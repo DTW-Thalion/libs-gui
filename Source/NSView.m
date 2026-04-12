@@ -1197,6 +1197,9 @@ static NSSize _computeScale(NSSize fs, NSSize bs)
       NSWarnMLog(@"given negative height");
       frameRect.size.height = 0;
     }
+  /* RB-G3: Reject NaN geometry to prevent corruption of the view hierarchy. */
+  if (isnan(frameRect.size.width) || isnan(frameRect.size.height))
+    return;
 
   if (NSEqualPoints(_frame.origin, frameRect.origin) == NO)
     {
@@ -1278,6 +1281,9 @@ static NSSize _computeScale(NSSize fs, NSSize bs)
       NSWarnMLog(@"given negative height");
       newSize.height = 0;
     }
+  /* RB-G3: Reject NaN geometry to prevent corruption of the view hierarchy. */
+  if (isnan(newSize.width) || isnan(newSize.height))
+    return;
   if (NSEqualSizes(_frame.size, newSize) == NO)
     {
       NSSize old_size = _frame.size;
@@ -2115,7 +2121,10 @@ static void autoresize(CGFloat oldContainerSize,
   if (viewIsPrinting == nil)
     {
       NSAssert(_window != nil, NSInternalInconsistencyException);
-      /* Check for deferred window */
+      /* RB-G6: Check for deferred window.  When gState==0 we return
+         early without pushing onto the graphics state stack.  The
+         corresponding unlockFocusNeedsFlush: performs the same check
+         so the stack stays balanced. */
       if ((window_gstate = [_window gState]) == 0)
         {
           return;
@@ -2578,6 +2587,11 @@ static void autoresize(CGFloat oldContainerSize,
   if (context == nil)
     {
       context = wContext;
+    }
+  /* RB-G7: If we still have no context (window not yet on screen), bail. */
+  if (context == nil)
+    {
+      return;
     }
 
   if (context == wContext)

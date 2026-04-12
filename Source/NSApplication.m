@@ -2127,7 +2127,15 @@ See -runModalForWindow:
  * Getting, removing, and posting events
  */
 
-/* Private method used by GSDragView to dispatch drag events as Cocoa does. */
+/* Private method used by GSDragView to dispatch drag events as Cocoa does.
+ *
+ * TS-G10: _current_event is assigned from multiple paths (here, in
+ * runModalSession:, and in nextEventMatchingMask:).  This is currently
+ * benign because all assignments happen on the main thread through the
+ * run loop, and ASSIGN is an atomic pointer swap.  If the event dispatch
+ * architecture ever becomes multi-threaded, _current_event will need
+ * explicit synchronization.
+ */
 - (void) _postAndSendEvent: (NSEvent *)anEvent
 {
   ASSIGN(_current_event, anEvent);

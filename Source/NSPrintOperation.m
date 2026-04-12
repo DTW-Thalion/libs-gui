@@ -1040,6 +1040,11 @@ scaleRect(NSRect rect, double scale)
     {
       NSRect pageRect;
 
+      /* RB-G8: Allow early termination if the context has been torn down
+         (e.g. the user cancelled the print job from a progress panel). */
+      if (_context == nil)
+        break;
+
       if (knowsPageRange == YES)
         {
           pageRect = [_view rectForPage: _currentPage];

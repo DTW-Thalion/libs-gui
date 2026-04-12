@@ -36,6 +36,10 @@
 
 - (void) establishConnection
 {
+  /* RB-G5: Validate _tag and _src before attempting to wire the connection. */
+  if (_src == nil || _tag == nil || [_tag length] == 0)
+    return;
+
   SEL sel = NSSelectorFromString(_tag);
 
   [_src setTarget: _dst];
