@@ -52,6 +52,7 @@
 #import <Foundation/NSSet.h>
 #import <Foundation/NSString.h>
 #import <Foundation/NSTimer.h>
+#import <Foundation/NSLock.h>
 #import <Foundation/NSThread.h>
 #import <Foundation/NSUserDefaults.h>
 #import <Foundation/NSValue.h>
@@ -368,6 +369,9 @@ struct _NSModalSession {
   NSWindow		*window;
   NSModalSession	previous;
 };
+
+/* TS-G4: Lock protecting the _session linked list from concurrent mutation. */
+static NSLock *_sessionLock = nil;
  
 @interface NSApplication (Private)
 - (void) _appIconInit;
@@ -783,6 +787,8 @@ static BOOL _isAutolaunchChecked = NO;
       /* Cache the NSAutoreleasePool class */
       arpClass = [NSAutoreleasePool class];
       nc = [NSNotificationCenter defaultCenter];
+      /* TS-G4: Initialize the modal session lock. */
+      _sessionLock = [NSLock new];
       [pool drain];
     }
 }
@@ -1682,8 +1688,11 @@ static BOOL _isAutolaunchChecked = NO;
   theSession->runState = NSRunContinuesResponse;
   theSession->entryLevel = [theWindow level];
   theSession->window = theWindow;
+  /* TS-G4: Protect _session linked list mutation. */
+  [_sessionLock lock];
   theSession->previous = _session;
   _session = theSession;
+  [_sessionLock unlock];
 
   /*
    * Displaying / raising window but centering panel only if not up
@@ -1718,7 +1727,7 @@ static BOOL _isAutolaunchChecked = NO;
  */
 - (void) endModalSession: (NSModalSession)theSession
 {
-  NSModalSession	tmp = _session;
+  NSModalSession	tmp;
   NSArray		*windows = [self windows];
 
   if (theSession == 0)
@@ -1726,6 +1735,9 @@ static BOOL _isAutolaunchChecked = NO;
       [NSException raise: NSInvalidArgumentException
 		  format: @"null pointer passed to endModalSession:"];
     }
+  /* TS-G4: Protect _session linked list mutation. */
+  [_sessionLock lock];
+  tmp = _session;
   /* Remove this session from linked list of sessions. */
   while (tmp != 0 && tmp != theSession)
     {
@@ -1733,6 +1745,7 @@ static BOOL _isAutolaunchChecked = NO;
     }
   if (tmp == 0)
     {
+      [_sessionLock unlock];
       [NSException raise: NSInvalidArgumentException
 		  format: @"unknown session passed to endModalSession:"];
     }
@@ -1747,6 +1760,7 @@ static BOOL _isAutolaunchChecked = NO;
       NSZoneFree(NSDefaultMallocZone(), tmp);
     }
   _session = _session->previous;
+  [_sessionLock unlock];
   if ([windows indexOfObjectIdenticalTo: theSession->window] != NSNotFound)
     {
       [theSession->window setLevel: theSession->entryLevel];
@@ -1866,12 +1880,16 @@ See Also: -runModalForWindow:
   BOOL		done = NO;
   NSEvent	*event;
   NSDate	*limit;
-  
+
+  /* TS-G4: Verify session identity under lock. */
+  [_sessionLock lock];
   if (theSession != _session)
     {
+      [_sessionLock unlock];
       [NSException raise: NSInvalidArgumentException
 		  format: @"runModalSession: with wrong session"];
     }
+  [_sessionLock unlock];
 
   // Use the default context for all events.
   srv = GSCurrentServer();
@@ -2212,6 +2230,10 @@ See -runModalForWindow:
 			   dequeue: (BOOL)flag
 {
   NSEvent	*event;
+
+  /* TS-G1: Event dispatch must only occur on the main thread. */
+  NSAssert([NSThread isMainThread],
+    @"nextEventMatchingMask: must be called from the main thread");
 
   if (_windows_need_update)
     {

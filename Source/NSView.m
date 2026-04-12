@@ -2616,21 +2616,24 @@ static void autoresize(CGFloat oldContainerSize,
    */
   if (_rFlags.has_subviews == YES)
     {
-      NSUInteger count = [_sub_views count];
+      /* TS-G2: Snapshot the subview array so that mutations during display
+         (e.g. a subview removing itself) do not corrupt the iteration. */
+      NSArray *subviewsCopy = [_sub_views copy];
+      NSUInteger count = [subviewsCopy count];
 
       if (count > 0)
         {
           NSView *array[count];
           NSUInteger i;
-          
-          [_sub_views getObjects: array];
+
+          [subviewsCopy getObjects: array];
 
           for (i = 0; i < count; ++i)
             {
               NSView *subview = array[i];
               NSRect subviewFrame = [subview _frameExtend];
               NSRect isect;
-              
+
               /*
                * Having drawn ourself into the rect, we must make sure that
                * subviews overlapping the area are redrawn.
@@ -2653,6 +2656,7 @@ static void autoresize(CGFloat oldContainerSize,
                 }
             }
         }
+      [subviewsCopy release];
     }
 
   if (context == wContext)

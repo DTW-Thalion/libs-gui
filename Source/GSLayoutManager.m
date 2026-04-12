@@ -1205,8 +1205,11 @@ places where we switch.
   unsigned int ch;
   unsigned int max;
 
+  /* TS-G3: Protect glyph invalidation from concurrent access. */
+  [_layoutLock lock];
+
   /*
-  We always clear out the cached run information to be safe. This is only needed 
+  We always clear out the cached run information to be safe. This is only needed
   if the cached run is affected by the invalidation, that is if
   NSMinRange(range) < cpos + cached_run->head.char_lenght
   */
@@ -1224,6 +1227,7 @@ places where we switch.
     {
       // Full invalidation
       [self _invalidateEverything];
+      [_layoutLock unlock];
       return;
     }
 
@@ -1268,6 +1272,7 @@ places where we switch.
                 to invalidate.
               */
 //	      printf("no runs created yet\n");
+              [_layoutLock unlock];
               return;
             }
         }
@@ -1569,6 +1574,7 @@ places where we switch.
 
   [self _sanityChecks];
   //[self _glyphDumpRuns];
+  [_layoutLock unlock];
 }
 
 
@@ -1843,7 +1849,10 @@ places where we switch.
 
 -(void) _doLayout
 {
+  /* TS-G3: Protect layout from concurrent access. */
+  [_layoutLock lock];
   [self _doLayoutToContainer: num_textcontainers - 1];
+  [_layoutLock unlock];
 }
 
 -(void) _doLayoutToGlyph: (unsigned int)glyphIndex
@@ -2895,6 +2904,9 @@ forStartOfGlyphRange: (NSRange)glyphRange
   usesScreenFonts = YES;
   [self _initGlyphs];
 
+  /* TS-G3: Initialize the recursive lock for thread-safe layout. */
+  _layoutLock = [NSRecursiveLock new];
+
   return self;
 }
 
@@ -2920,6 +2932,9 @@ forStartOfGlyphRange: (NSRange)glyphRange
 
   DESTROY(typesetter);
   DESTROY(_glyphGenerator);
+
+  /* TS-G3: Release the layout lock. */
+  DESTROY(_layoutLock);
 
   [super dealloc];
 }
@@ -3112,6 +3127,9 @@ has).
 {
   NSRange r;
 
+  /* TS-G3: Protect glyph/layout invalidation from concurrent access. */
+  [_layoutLock lock];
+
   if (!(mask & NSTextStorageEditedCharacters))
     lengthChange = 0;
 
@@ -3126,6 +3144,8 @@ has).
   */
   [self _invalidateLayoutFromContainer: 0];
   [self _didInvalidateLayout];
+
+  [_layoutLock unlock];
 }
 
 -(unsigned int) _findSafeBreakMovingBackwardFrom: (unsigned int)ch

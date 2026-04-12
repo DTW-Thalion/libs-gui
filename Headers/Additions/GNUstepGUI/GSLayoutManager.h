@@ -30,6 +30,7 @@
 
 #import <Foundation/NSObject.h>
 #import <Foundation/NSGeometry.h>
+#import <Foundation/NSLock.h>
 #import <AppKit/NSFont.h>
 #import <AppKit/NSGlyphGenerator.h>
 
@@ -111,6 +112,9 @@ how it's supposed to work. It's functional and correct, but it isn't fast. */
   */
   struct GSLayoutManager_glyph_run_s *cached_run;
   unsigned int cached_pos, cached_cpos;
+
+  /* TS-G3: Recursive lock protecting layout state from concurrent access. */
+  NSRecursiveLock *_layoutLock;
 }
 
 
