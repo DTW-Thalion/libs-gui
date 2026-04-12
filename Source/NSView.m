@@ -101,6 +101,119 @@
 #define	nKV(O)	((GSIArray)(O->_nextKeyView))
 #define	pKV(O)	((GSIArray)(O->_previousKeyView))
 
+/* PF-D1: Dirty region list — tracks up to 8 individual dirty rects per view
+   instead of merging everything into a single bounding box.  This reduces
+   over-drawing when scattered small areas are invalidated. */
+#define GS_DIRTY_REGION_MAX 8
+
+typedef struct _GSDirtyRegion {
+  NSRect rects[GS_DIRTY_REGION_MAX];
+  unsigned count;
+} GSDirtyRegion;
+
+static inline void
+GSDirtyRegionReset(GSDirtyRegion *r)
+{
+  r->count = 0;
+}
+
+static inline NSRect
+GSDirtyRegionBounds(const GSDirtyRegion *r)
+{
+  if (r->count == 0)
+    return NSZeroRect;
+  NSRect bounds = r->rects[0];
+  unsigned i;
+  for (i = 1; i < r->count; i++)
+    bounds = NSUnionRect(bounds, r->rects[i]);
+  return bounds;
+}
+
+/* Find the pair of rects whose union wastes the least area, merge them. */
+static inline void
+_GSDirtyRegionMergeClosestPair(GSDirtyRegion *r)
+{
+  if (r->count < 2)
+    return;
+
+  unsigned bestA = 0, bestB = 1;
+  CGFloat bestWaste = CGFLOAT_MAX;
+  unsigned i, j;
+
+  for (i = 0; i < r->count; i++)
+    {
+      for (j = i + 1; j < r->count; j++)
+        {
+          NSRect u = NSUnionRect(r->rects[i], r->rects[j]);
+          CGFloat waste = (u.size.width * u.size.height)
+            - (r->rects[i].size.width * r->rects[i].size.height)
+            - (r->rects[j].size.width * r->rects[j].size.height);
+          if (waste < bestWaste)
+            {
+              bestWaste = waste;
+              bestA = i;
+              bestB = j;
+            }
+        }
+    }
+
+  r->rects[bestA] = NSUnionRect(r->rects[bestA], r->rects[bestB]);
+  /* Remove slot bestB by swapping with last */
+  r->count--;
+  if (bestB < r->count)
+    r->rects[bestB] = r->rects[r->count];
+}
+
+static inline void
+GSDirtyRegionAddRect(GSDirtyRegion *r, NSRect rect)
+{
+  if (NSIsEmptyRect(rect))
+    return;
+
+  if (r->count < GS_DIRTY_REGION_MAX)
+    {
+      r->rects[r->count++] = rect;
+    }
+  else
+    {
+      /* At capacity — merge closest pair to make room, then add. */
+      _GSDirtyRegionMergeClosestPair(r);
+      r->rects[r->count++] = rect;
+    }
+}
+
+/* Associated-object key for the per-view GSDirtyRegion.
+   Using objc_getAssociatedObject avoids ABI changes to NSView's ivar layout. */
+#import <objc/runtime.h>
+static const char _GSDirtyRegionKey = 0;
+
+static inline GSDirtyRegion *
+_GSViewGetDirtyRegion(NSView *view)
+{
+  GSDirtyRegion *region = (GSDirtyRegion *)objc_getAssociatedObject(
+    view, &_GSDirtyRegionKey);
+  if (!region)
+    {
+      region = (GSDirtyRegion *)calloc(1, sizeof(GSDirtyRegion));
+      objc_setAssociatedObject(view, &_GSDirtyRegionKey,
+        (id)region, OBJC_ASSOCIATION_ASSIGN);
+    }
+  return region;
+}
+
+static inline void
+_GSViewFreeDirtyRegion(NSView *view)
+{
+  GSDirtyRegion *region = (GSDirtyRegion *)objc_getAssociatedObject(
+    view, &_GSDirtyRegionKey);
+  if (region)
+    {
+      free(region);
+      objc_setAssociatedObject(view, &_GSDirtyRegionKey,
+        nil, OBJC_ASSOCIATION_ASSIGN);
+    }
+}
+
 /* Variable tells this view and subviews that we're printing. Not really
    a class variable because we want it visible to subviews also
 */
@@ -743,6 +856,9 @@ GSSetDragTypes(NSView* obj, NSArray *types)
       NSZoneFree(NSDefaultMallocZone(), nKV(self));
       _nextKeyView = 0;
     }
+
+  /* PF-D1: Free the dirty region associated with this view. */
+  _GSViewFreeDirtyRegion(self);
 
   /*
    * Now remove our subviews, AFTER cleaning up the view chain, in case
@@ -2603,13 +2719,11 @@ static void autoresize(CGFloat oldContainerSize,
       [_window disableFlushWindow];
       aRect = NSIntersectionRect(aRect, visibleRect);
       neededRect = NSIntersectionRect(_invalidRect, visibleRect);
-  
+
       /*
        * If the rect we are going to display contains the _invalidRect
        * then we can empty _invalidRect. Do this before the drawing,
        * as drawRect: may change this value.
-       * FIXME: If the drawn rectangle cuts of a complete part of the
-       * _invalidRect, we should try to reduce this.
        */
       if (NSEqualRects(aRect, NSUnionRect(neededRect, aRect)) == YES)
         {
@@ -2617,22 +2731,50 @@ static void autoresize(CGFloat oldContainerSize,
           _rFlags.needs_display = NO;
         }
     }
-  
+
   if (NSIsEmptyRect(aRect) == NO)
     {
-      /*
-       * Now we draw this view.
-       */
-      [self _lockFocusInContext: context inRect: aRect];
-      /* TS-G8: Wrap drawRect: so that an exception restores the focus
-         stack before propagating. */
-      NS_DURING
-        [self drawRect: aRect];
-      NS_HANDLER
-        [self unlockFocusNeedsFlush: NO];
-        [localException raise];
-      NS_ENDHANDLER
-      [self unlockFocusNeedsFlush: flush];
+      /* PF-D1: Iterate individual dirty region rects instead of the
+         single bounding _invalidRect.  Each rect is clipped to aRect
+         so we only draw areas that actually changed. */
+      GSDirtyRegion *region = _GSViewGetDirtyRegion(self);
+
+      if (region->count > 1)
+        {
+          unsigned ri;
+          for (ri = 0; ri < region->count; ri++)
+            {
+              NSRect dirtyRect = NSIntersectionRect(region->rects[ri], aRect);
+              if (NSIsEmptyRect(dirtyRect))
+                continue;
+              [self _lockFocusInContext: context inRect: dirtyRect];
+              NS_DURING
+                [self drawRect: dirtyRect];
+              NS_HANDLER
+                [self unlockFocusNeedsFlush: NO];
+                [localException raise];
+              NS_ENDHANDLER
+              [self unlockFocusNeedsFlush: flush];
+            }
+          GSDirtyRegionReset(region);
+        }
+      else
+        {
+          /*
+           * Single rect or empty region — original fast path.
+           */
+          [self _lockFocusInContext: context inRect: aRect];
+          /* TS-G8: Wrap drawRect: so that an exception restores the focus
+             stack before propagating. */
+          NS_DURING
+            [self drawRect: aRect];
+          NS_HANDLER
+            [self unlockFocusNeedsFlush: NO];
+            [localException raise];
+          NS_ENDHANDLER
+          [self unlockFocusNeedsFlush: flush];
+          GSDirtyRegionReset(region);
+        }
     }
 
   /*
@@ -2823,6 +2965,7 @@ in the main thread.
     {
       _rFlags.needs_display = NO;
       _invalidRect = NSZeroRect;
+      GSDirtyRegionReset(_GSViewGetDirtyRegion(self));
     }
 }
 
@@ -2863,12 +3006,21 @@ in the main thread.
   invalidRect = [v rectValue];
 
   /*
-   *	Limit to bounds, combine with old _invalidRect, and then check to see
-   *	if the result is the same as the old _invalidRect - if it isn't then
-   *	set the new _invalidRect.
+   *	Limit to bounds, add to dirty region list, and update the bounding
+   *	_invalidRect for API compatibility.  The region list preserves
+   *	individual rects (up to GS_DIRTY_REGION_MAX) so that
+   *	displayRectIgnoringOpacity: can iterate them and avoid over-drawing.
    */
   invalidRect = NSIntersectionRect(invalidRect, _bounds);
-  invalidRect = NSUnionRect(_invalidRect, invalidRect);
+  if (NSIsEmptyRect(invalidRect))
+    return;
+
+  {
+    GSDirtyRegion *region = _GSViewGetDirtyRegion(self);
+    GSDirtyRegionAddRect(region, invalidRect);
+    invalidRect = GSDirtyRegionBounds(region);
+  }
+
   if (NSEqualRects(invalidRect, _invalidRect) == NO)
     {
       NSView	*firstOpaque = [self opaqueAncestor];
@@ -2878,7 +3030,7 @@ in the main thread.
       if (firstOpaque == self)
         {
 	  /**
-	   * Enlarge (if necessary) _invalidRect so it lies on integral device pixels 
+	   * Enlarge (if necessary) _invalidRect so it lies on integral device pixels
 	   */
 	  const NSRect inBase =  [self convertRectToBase: _invalidRect];
 	  const NSRect inBaseRounded = NSIntegralRect(inBase);

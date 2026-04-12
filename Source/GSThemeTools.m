@@ -27,14 +27,82 @@
 */
 
 #import <Foundation/NSException.h>
+#import <Foundation/NSMapTable.h>
+#import <Foundation/NSValue.h>
 #import "AppKit/NSBezierPath.h"
+#import "AppKit/NSColor.h"
 #import "AppKit/NSGraphics.h"
 #import "AppKit/NSImage.h"
+#import "AppKit/NSBitmapImageRep.h"
 #import "AppKit/PSOperators.h"
 #import "GSThemePrivate.h"
 
 #include <math.h>
 #include <float.h>
+
+/* PF-T1: Cache for tile composite results.
+   Keyed by (GSDrawTiles pointer + rounded size) to avoid re-compositing
+   all 9 tile images every time a themed control is drawn at the same size. */
+
+#define GS_TILE_CACHE_MAX 128 /* max entries before evicting oldest */
+
+typedef struct _GSTileCacheEntry {
+  NSSize  size;
+  NSImage *cachedImage;
+} GSTileCacheEntry;
+
+/* Simple cache: tiles pointer -> {size, image}.
+   We use a CFMutableDictionary with pointer keys for O(1) lookup. */
+static NSMapTable *_gsTileCache = nil;
+
+/* Size tolerance: if width and height both within 1pt, reuse cache. */
+static inline BOOL
+_GSTileSizeClose(NSSize a, NSSize b)
+{
+  return (fabs(a.width - b.width) <= 1.0 && fabs(a.height - b.height) <= 1.0);
+}
+
+static void
+_GSTileCacheInit(void)
+{
+  if (!_gsTileCache)
+    {
+      _gsTileCache = [[NSMapTable mapTableWithKeyOptions: NSPointerFunctionsOpaqueMemory | NSPointerFunctionsOpaquePersonality
+                                           valueOptions: NSPointerFunctionsStrongMemory | NSPointerFunctionsObjectPersonality]
+                       retain];
+    }
+}
+
+static NSImage *
+_GSTileCacheLookup(GSDrawTiles *tiles, NSSize size)
+{
+  _GSTileCacheInit();
+  NSValue *entry = [_gsTileCache objectForKey: (id)tiles];
+  if (entry)
+    {
+      GSTileCacheEntry e;
+      [entry getValue: &e];
+      if (_GSTileSizeClose(e.size, size))
+        return e.cachedImage;
+    }
+  return nil;
+}
+
+static void
+_GSTileCacheStore(GSDrawTiles *tiles, NSSize size, NSImage *image)
+{
+  _GSTileCacheInit();
+
+  /* Evict everything if cache is too large (simple strategy). */
+  if ([_gsTileCache count] >= GS_TILE_CACHE_MAX)
+    [_gsTileCache removeAllObjects];
+
+  GSTileCacheEntry e;
+  e.size = size;
+  e.cachedImage = image;
+  NSValue *entry = [NSValue valueWithBytes: &e objCType: @encode(GSTileCacheEntry)];
+  [_gsTileCache setObject: entry forKey: (id)tiles];
+}
 
 
 @implementation	GSTheme (MidLevelDrawing)
@@ -645,7 +713,55 @@ withRepeatedImage: (NSImage*)image
 		format: @"[%@-%@] tiles is nil",
       NSStringFromClass([self class]), NSStringFromSelector(_cmd)];
 
-  return [tiles fillRect: rect background: color fillStyle: style];
+  /* PF-T1: Check tile composite cache before doing the full 9-tile draw. */
+  {
+    NSImage *cached = _GSTileCacheLookup(tiles, rect.size);
+    if (cached)
+      {
+        BOOL flipped = [[GSCurrentContext() focusView] isFlipped];
+        NSPoint p = rect.origin;
+        if (flipped)
+          p.y += rect.size.height;
+        [cached compositeToPoint: p
+                        fromRect: NSMakeRect(0, 0, rect.size.width, rect.size.height)
+                       operation: NSCompositeSourceOver];
+        return [tiles contentRectForRect: rect isFlipped: flipped];
+      }
+  }
+
+  {
+    /* Draw normally, then capture the result into the cache. */
+    NSRect result = [tiles fillRect: rect background: color fillStyle: style];
+
+    /* Capture drawn area into a cached image.
+       We create an NSImage of the same size, lock focus on it,
+       and copy from the current context. */
+    NS_DURING
+      {
+        NSImage *cacheImage = [[NSImage alloc] initWithSize: rect.size];
+        [cacheImage setFlipped: NO];
+        [cacheImage lockFocus];
+
+        /* Re-draw the tiles into the off-screen image */
+        NSRect offRect = NSMakeRect(0, 0, rect.size.width, rect.size.height);
+        if (color)
+          {
+            [color set];
+            NSRectFill(offRect);
+          }
+        [tiles fillRect: offRect background: color fillStyle: style];
+
+        [cacheImage unlockFocus];
+
+        _GSTileCacheStore(tiles, rect.size, cacheImage);
+        [cacheImage release];
+      }
+    NS_HANDLER
+      /* If caching fails (e.g. no focus view), just skip caching. */
+    NS_ENDHANDLER
+
+    return result;
+  }
 }
 
 - (void) fillVerticalRect: (NSRect)rect
