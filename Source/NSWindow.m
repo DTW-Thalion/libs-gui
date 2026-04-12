@@ -34,6 +34,8 @@
 #import "config.h"
 #include <math.h>
 #include <float.h>
+#include <objc/runtime.h>
+#include <sys/time.h>
 
 #import <Foundation/NSArray.h>
 #import <Foundation/NSDebug.h>
@@ -105,6 +107,20 @@
 #include <GNUstepBase/GSIArray.h>
 
 static GSToolTips *toolTipVisible = nil;
+
+/* Key for associated object storing last display timestamp during live resize.
+ * We store an NSNumber wrapping a double (seconds since epoch). */
+static char _gsLiveResizeLastDisplayKey;
+
+/* Minimum interval between display cycles during live resize (1/60s = 60fps) */
+static const double _gsLiveResizeMinInterval = 1.0 / 60.0;
+
+static double _gsCurrentTimeSeconds(void)
+{
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
+}
 static id<GSWindowDecorator> windowDecorator = nil;
 
 
@@ -2626,6 +2642,26 @@ titleWithRepresentedFilename(NSString *representedFilename)
 
   if (_f.views_need_display)
     {
+      /* During live resize, throttle display to 60fps to avoid wasting
+       * CPU on redraws that will never be visible.  Check whether
+       * the content view is in a live resize operation. */
+      if ([_wv inLiveResize])
+        {
+          double now = _gsCurrentTimeSeconds();
+          NSNumber *lastDisplay = objc_getAssociatedObject(self,
+            &_gsLiveResizeLastDisplayKey);
+          if (lastDisplay != nil)
+            {
+              double elapsed = now - [lastDisplay doubleValue];
+              if (elapsed < _gsLiveResizeMinInterval)
+                {
+                  return;
+                }
+            }
+          objc_setAssociatedObject(self, &_gsLiveResizeLastDisplayKey,
+            [NSNumber numberWithDouble: now], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+
       [_wv displayIfNeeded];
       [self discardCachedImage];
       _f.views_need_display = NO;
