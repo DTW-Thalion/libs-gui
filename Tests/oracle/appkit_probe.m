@@ -1,6 +1,5 @@
-/* Apple oracle for the NSStepper coverage test: the cell class, the value
-   defaults exposed through the control, and the delegation of the setters
-   to the cell. */
+/* Apple oracle for the NSPopUpButtonCell coverage test: defaults, the menu
+   item list, auto-selection, duplicate-title handling and selection. */
 #import <Cocoa/Cocoa.h>
 
 int main(void)
@@ -10,30 +9,68 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
 
-    printf("STP cellClass=%s\n", [NSStringFromClass([NSStepper cellClass]) UTF8String]);
+    NSPopUpButtonCell *c = [[NSPopUpButtonCell alloc] initTextCell: @"" pullsDown: NO];
+    printf("PUB defaults: pullsDown=%d autoenables=%d usesItemFromMenu=%d altersState=%d\n",
+           [c pullsDown], [c autoenablesItems], [c usesItemFromMenu], [c altersStateOfSelectedItem]);
+    printf("PUB defaults: preferredEdge=%lu (maxY=%lu) arrowPosition=%ld numItems=%ld selIndex=%ld\n",
+           (unsigned long)[c preferredEdge], (unsigned long)NSMaxYEdge,
+           (long)[c arrowPosition], (long)[c numberOfItems], (long)[c indexOfSelectedItem]);
 
-    NSStepper *s = [[NSStepper alloc] initWithFrame: NSMakeRect(0, 0, 20, 30)];
-    printf("STP cell isStepperCell=%d\n", [[s cell] isKindOfClass: [NSStepperCell class]]);
-    printf("STP defaults: min=%g max=%g inc=%g wraps=%d autorep=%d\n",
-           [s minValue], [s maxValue], [s increment], [s valueWraps], [s autorepeat]);
+    /* Adding the first item auto-selects it. */
+    [c addItemWithTitle: @"alpha"];
+    printf("PUB after add alpha: numItems=%ld selIndex=%ld selTitle='%s'\n",
+           (long)[c numberOfItems], (long)[c indexOfSelectedItem],
+           [[c titleOfSelectedItem] UTF8String]);
+    [c addItemsWithTitles: [NSArray arrayWithObjects: @"beta", @"gamma", nil]];
+    printf("PUB after add 2 more: numItems=%ld selIndex=%ld titles=%s\n",
+           (long)[c numberOfItems], (long)[c indexOfSelectedItem],
+           [[[c itemTitles] componentsJoinedByString: @","] UTF8String]);
 
-    /* Delegation: setting on the control reflects on its cell. */
-    [s setMaxValue: 20];
-    [s setMinValue: 5];
-    [s setIncrement: 2];
-    [s setValueWraps: NO];
-    [s setAutorepeat: NO];
-    printf("STP after setters control: max=%g min=%g inc=%g wraps=%d autorep=%d\n",
-           [s maxValue], [s minValue], [s increment], [s valueWraps], [s autorepeat]);
-    printf("STP after setters cell:    max=%g min=%g inc=%g wraps=%d autorep=%d\n",
-           [[s cell] maxValue], [[s cell] minValue], [[s cell] increment],
-           [[s cell] valueWraps], [[s cell] autorepeat]);
+    /* Duplicate title moves the item; no duplicate is created. */
+    [c addItemWithTitle: @"beta"];
+    printf("PUB after add dup beta: numItems=%ld indexOf beta=%ld\n",
+           (long)[c numberOfItems], (long)[c indexOfItemWithTitle: @"beta"]);
 
-    /* Value through the control (clamped by the cell). */
-    [s setIntValue: 10];
-    printf("STP setIntValue 10 -> %d (min5 max20)\n", [s intValue]);
-    [s setIntValue: 100];
-    printf("STP setIntValue 100 -> %d (clamps to max)\n", [s intValue]);
+    /* Insert at a position. */
+    [c insertItemWithTitle: @"inserted" atIndex: 1];
+    printf("PUB insert at 1: title@1='%s' numItems=%ld\n",
+           [[c itemTitleAtIndex: 1] UTF8String], (long)[c numberOfItems]);
+
+    /* Queries. */
+    printf("PUB indexOf gamma=%ld itemWithTitle alpha!=nil:%d lastItem title='%s'\n",
+           (long)[c indexOfItemWithTitle: @"gamma"],
+           [c itemWithTitle: @"alpha"] != nil, [[[c lastItem] title] UTF8String]);
+    printf("PUB indexOf missing=%ld\n", (long)[c indexOfItemWithTitle: @"nope"]);
+
+    /* Tag lookup. */
+    [[c itemAtIndex: 2] setTag: 42];
+    printf("PUB indexOfItemWithTag 42=%ld tag99=%ld\n",
+           (long)[c indexOfItemWithTag: 42], (long)[c indexOfItemWithTag: 99]);
+
+    /* Selection. */
+    [c selectItemAtIndex: 2];
+    printf("PUB select 2: selIndex=%ld selTitle='%s'\n",
+           (long)[c indexOfSelectedItem], [[c titleOfSelectedItem] UTF8String]);
+    [c selectItemWithTitle: @"alpha"];
+    printf("PUB selectWithTitle alpha: selIndex=%ld\n", (long)[c indexOfSelectedItem]);
+
+    /* Removal (removing the selected item). */
+    [c selectItemAtIndex: 0];
+    [c removeItemAtIndex: 0];
+    printf("PUB remove selected 0: numItems=%ld selIndex=%ld\n",
+           (long)[c numberOfItems], (long)[c indexOfSelectedItem]);
+    [c removeAllItems];
+    printf("PUB removeAll: numItems=%ld selIndex=%ld\n",
+           (long)[c numberOfItems], (long)[c indexOfSelectedItem]);
+
+    /* Property round-trips. */
+    [c setPullsDown: YES];
+    [c setAutoenablesItems: NO];
+    [c setPreferredEdge: NSMinXEdge];
+    [c setArrowPosition: NSPopUpArrowAtBottom];
+    printf("PUB roundtrip pullsDown=%d autoenables=%d preferredEdge=%lu arrow=%ld\n",
+           [c pullsDown], [c autoenablesItems],
+           (unsigned long)[c preferredEdge], (long)[c arrowPosition]);
 
     printf("DONE\n");
   }
