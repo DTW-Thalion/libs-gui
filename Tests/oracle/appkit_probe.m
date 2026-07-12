@@ -1,5 +1,7 @@
-/* Apple oracle: the exact NSTrackingAreaOptions constant values, and the
-   userInfo/owner/rect/copy behaviour of a valid tracking area. */
+/* Apple oracle for the NSTextContainer coverage test: the defaults (container
+   size, line fragment padding, tracking flags, layout manager, text view),
+   the accessor round-trips, isSimpleRectangularTextContainer and
+   containsPoint:. */
 #import <Cocoa/Cocoa.h>
 
 int
@@ -7,38 +9,32 @@ main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    NSLog(@"OPT EnteredExited=0x%lX MouseMoved=0x%lX CursorUpdate=0x%lX",
-          (unsigned long)NSTrackingMouseEnteredAndExited,
-          (unsigned long)NSTrackingMouseMoved,
-          (unsigned long)NSTrackingCursorUpdate);
-    NSLog(@"OPT ActiveWhenFirstResponder=0x%lX ActiveInKeyWindow=0x%lX "
-          @"ActiveInActiveApp=0x%lX ActiveAlways=0x%lX",
-          (unsigned long)NSTrackingActiveWhenFirstResponder,
-          (unsigned long)NSTrackingActiveInKeyWindow,
-          (unsigned long)NSTrackingActiveInActiveApp,
-          (unsigned long)NSTrackingActiveAlways);
-    NSLog(@"OPT AssumeInside=0x%lX InVisibleRect=0x%lX EnabledDuringMouseDrag=0x%lX",
-          (unsigned long)NSTrackingAssumeInside,
-          (unsigned long)NSTrackingInVisibleRect,
-          (unsigned long)NSTrackingEnabledDuringMouseDrag);
+    NSTextContainer *t = [[NSTextContainer alloc] init];
+    NSLog(@"TC init size=%@ padding=%g wTracks=%d hTracks=%d lm=%@ tv=%@ simple=%d",
+          NSStringFromSize([t containerSize]), [t lineFragmentPadding],
+          [t widthTracksTextView], [t heightTracksTextView],
+          [t layoutManager] == nil ? @"nil" : @"set",
+          [t textView] == nil ? @"nil" : @"set",
+          [t isSimpleRectangularTextContainer]);
 
-    NSDictionary *info = @{@"k": @"v"};
-    id owner = [[NSObject alloc] init];
-    NSRect r = NSMakeRect(10, 20, 30, 40);
-    NSTrackingAreaOptions opts =
-      NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways;
+    NSTextContainer *s = [[NSTextContainer alloc]
+      initWithContainerSize: NSMakeSize(100, 200)];
+    NSLog(@"TC initWithContainerSize size=%@", NSStringFromSize([s containerSize]));
 
-    NSTrackingArea *a = [[NSTrackingArea alloc] initWithRect: r
-        options: opts owner: owner userInfo: info];
-    NSTrackingArea *c = [a copy];
-    NSLog(@"TA copy rect=%@ options=%lu ownerSame=%d userInfoV=%@ distinct=%d",
-          NSStringFromRect([c rect]), (unsigned long)[c options],
-          [c owner] == owner, [[c userInfo] objectForKey: @"k"], c != a);
+    [s setContainerSize: NSMakeSize(50, 60)];
+    [s setLineFragmentPadding: 3.0];
+    [s setWidthTracksTextView: YES];
+    [s setHeightTracksTextView: YES];
+    NSLog(@"TC roundtrip size=%@ padding=%g wTracks=%d hTracks=%d",
+          NSStringFromSize([s containerSize]), [s lineFragmentPadding],
+          [s widthTracksTextView], [s heightTracksTextView]);
 
-    NSTrackingArea *b = [[NSTrackingArea alloc] initWithRect: r
-        options: NSTrackingMouseMoved | NSTrackingActiveAlways owner: owner
-        userInfo: nil];
-    NSLog(@"TA nilInfo userInfo=%@", [b userInfo] == nil ? @"nil" : @"nonnil");
+    NSTextContainer *p = [[NSTextContainer alloc]
+      initWithContainerSize: NSMakeSize(100, 200)];
+    NSLog(@"TC containsPoint in=%d out=%d edge=%d",
+          [p containsPoint: NSMakePoint(10, 10)],
+          [p containsPoint: NSMakePoint(150, 10)],
+          [p containsPoint: NSMakePoint(100, 200)]);
   }
   return 0;
 }
