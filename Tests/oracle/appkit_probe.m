@@ -1,5 +1,6 @@
-/* Apple oracle for the NSComboBoxCell coverage test: defaults, the
-   internal item list, selection, and completedString:. */
+/* Apple oracle for the NSStepper coverage test: the cell class, the value
+   defaults exposed through the control, and the delegation of the setters
+   to the cell. */
 #import <Cocoa/Cocoa.h>
 
 int main(void)
@@ -9,60 +10,30 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
 
-    NSComboBoxCell *c = [[NSComboBoxCell alloc] initTextCell: @""];
-    printf("CB defaults: usesDataSource=%d hasVScroller=%d completes=%d buttonBordered=%d\n",
-           [c usesDataSource], [c hasVerticalScroller], [c completes], [c isButtonBordered]);
-    printf("CB defaults: numVisible=%ld itemHeight=%g intercell=%gx%g selected=%ld numItems=%ld\n",
-           (long)[c numberOfVisibleItems], [c itemHeight],
-           [c intercellSpacing].width, [c intercellSpacing].height,
-           (long)[c indexOfSelectedItem], (long)[c numberOfItems]);
+    printf("STP cellClass=%s\n", [NSStringFromClass([NSStepper cellClass]) UTF8String]);
 
-    /* Internal item list. */
-    [c addItemWithObjectValue: @"alpha"];
-    [c addItemsWithObjectValues: [NSArray arrayWithObjects: @"beta", @"gamma", nil]];
-    printf("CB after add 3: numItems=%ld item0=%s item2=%s\n",
-           (long)[c numberOfItems], [[c itemObjectValueAtIndex: 0] UTF8String],
-           [[c itemObjectValueAtIndex: 2] UTF8String]);
-    printf("CB objectValues=%s\n", [[[c objectValues] componentsJoinedByString: @","] UTF8String]);
-    printf("CB indexOf beta=%ld indexOf missing=%ld (NSNotFound=%ld)\n",
-           (long)[c indexOfItemWithObjectValue: @"beta"],
-           (long)[c indexOfItemWithObjectValue: @"zzz"], (long)NSNotFound);
+    NSStepper *s = [[NSStepper alloc] initWithFrame: NSMakeRect(0, 0, 20, 30)];
+    printf("STP cell isStepperCell=%d\n", [[s cell] isKindOfClass: [NSStepperCell class]]);
+    printf("STP defaults: min=%g max=%g inc=%g wraps=%d autorep=%d\n",
+           [s minValue], [s maxValue], [s increment], [s valueWraps], [s autorepeat]);
 
-    [c insertItemWithObjectValue: @"inserted" atIndex: 1];
-    printf("CB after insert at 1: item1=%s numItems=%ld\n",
-           [[c itemObjectValueAtIndex: 1] UTF8String], (long)[c numberOfItems]);
+    /* Delegation: setting on the control reflects on its cell. */
+    [s setMaxValue: 20];
+    [s setMinValue: 5];
+    [s setIncrement: 2];
+    [s setValueWraps: NO];
+    [s setAutorepeat: NO];
+    printf("STP after setters control: max=%g min=%g inc=%g wraps=%d autorep=%d\n",
+           [s maxValue], [s minValue], [s increment], [s valueWraps], [s autorepeat]);
+    printf("STP after setters cell:    max=%g min=%g inc=%g wraps=%d autorep=%d\n",
+           [[s cell] maxValue], [[s cell] minValue], [[s cell] increment],
+           [[s cell] valueWraps], [[s cell] autorepeat]);
 
-    /* Selection. */
-    [c selectItemAtIndex: 2];
-    printf("CB select 2: selIndex=%ld selValue=%s\n",
-           (long)[c indexOfSelectedItem], [[c objectValueOfSelectedItem] UTF8String]);
-    [c selectItemWithObjectValue: @"alpha"];
-    printf("CB selectWithValue alpha: selIndex=%ld\n", (long)[c indexOfSelectedItem]);
-    [c selectItemWithObjectValue: @"nothere"];
-    printf("CB selectWithValue missing: selIndex=%ld selValue nil:%d\n",
-           (long)[c indexOfSelectedItem], [c objectValueOfSelectedItem] == nil);
-    [c selectItemAtIndex: 0];
-    [c deselectItemAtIndex: 0];
-    printf("CB deselect: selIndex=%ld\n", (long)[c indexOfSelectedItem]);
-
-    /* Removal. */
-    [c removeItemWithObjectValue: @"beta"];
-    printf("CB after remove beta: numItems=%ld indexOf beta=%ld\n",
-           (long)[c numberOfItems], (long)[c indexOfItemWithObjectValue: @"beta"]);
-    [c removeItemAtIndex: 0];
-    printf("CB after removeAt 0: item0=%s numItems=%ld\n",
-           [[c itemObjectValueAtIndex: 0] UTF8String], (long)[c numberOfItems]);
-    [c removeAllItems];
-    printf("CB after removeAll: numItems=%ld\n", (long)[c numberOfItems]);
-
-    /* completedString: prefix completion against the item list. */
-    NSComboBoxCell *cc = [[NSComboBoxCell alloc] initTextCell: @""];
-    [cc addItemsWithObjectValues:
-      [NSArray arrayWithObjects: @"Apple", @"Apricot", @"Banana", nil]];
-    printf("CB completedString 'Ap'='%s' 'Ban'='%s' 'xyz'='%s'\n",
-           [[cc completedString: @"Ap"] UTF8String],
-           [[cc completedString: @"Ban"] UTF8String],
-           [[cc completedString: @"xyz"] UTF8String]);
+    /* Value through the control (clamped by the cell). */
+    [s setIntValue: 10];
+    printf("STP setIntValue 10 -> %d (min5 max20)\n", [s intValue]);
+    [s setIntValue: 100];
+    printf("STP setIntValue 100 -> %d (clamps to max)\n", [s intValue]);
 
     printf("DONE\n");
   }
