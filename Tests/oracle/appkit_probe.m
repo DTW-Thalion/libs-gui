@@ -18,7 +18,7 @@ int main(void)
            [b takesTitleFromPreviousColumn]);
     printf("BR flags: separates=%d titled=%d hScroller=%d arrowKeys=%d alphaKeys=%d\n",
            [b separatesColumns], [b isTitled], [b hasHorizontalScroller],
-           [b sendsActionOnArrowKeys], [b sendsActionOnAlphaNumericalKeys]);
+           [b sendsActionOnArrowKeys], ([b respondsToSelector:@selector(sendsActionOnAlphaNumericalKeys)]?[b sendsActionOnAlphaNumericalKeys]:-1));
     printf("BR flags: prefersAllColResize=%d\n", [b prefersAllColumnUserResizing]);
     printf("BR pathSeparator='%s' minColWidth=%g maxVisibleCols=%ld colResizeType=%ld\n",
            [[b pathSeparator] UTF8String], [b minColumnWidth],
