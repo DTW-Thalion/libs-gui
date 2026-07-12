@@ -1,0 +1,12 @@
+name: AppKit oracle
+on: push
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run the AppKit probe
+        run: |
+          clang -Wno-deprecated-declarations -framework Cocoa \
+            Tests/oracle/appkit_probe.m -o appkit_probe
+          ./appkit_probe 2>&1
