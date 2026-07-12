@@ -17,19 +17,14 @@ int main(void)
     printf("SEC cell default echosBullets = %d\n", [sc echosBullets]);
 
     NSSecureTextField *sf = [[NSSecureTextField alloc] initWithFrame: NSMakeRect(0,0,100,22)];
-    printf("SEC field default echosBullets = %d\n", [sf echosBullets]);
+    printf("SEC field responds to echosBullets = %d\n",
+           [sf respondsToSelector: @selector(echosBullets)]);
 
     NSSecureTextFieldCell *cc = [[NSSecureTextFieldCell alloc] init];
     [cc setEchosBullets: NO];
     NSData *dc = [NSKeyedArchiver archivedDataWithRootObject: cc requiringSecureCoding: NO error: NULL];
     NSSecureTextFieldCell *cc2 = [NSKeyedUnarchiver unarchivedObjectOfClass: [NSSecureTextFieldCell class] fromData: dc error: NULL];
     printf("SEC cell archive(NO) -> echosBullets = %d\n", [cc2 echosBullets]);
-
-    NSSecureTextField *ff = [[NSSecureTextField alloc] initWithFrame: NSMakeRect(0,0,100,22)];
-    [ff setEchosBullets: NO];
-    NSData *df = [NSKeyedArchiver archivedDataWithRootObject: ff requiringSecureCoding: NO error: NULL];
-    NSSecureTextField *ff2 = [NSKeyedUnarchiver unarchivedObjectOfClass: [NSSecureTextField class] fromData: df error: NULL];
-    printf("SEC field archive(NO) -> echosBullets = %d\n", [ff2 echosBullets]);
 
     @try {
       [NSSecureTextField setCellClass: [NSTextFieldCell class]];
