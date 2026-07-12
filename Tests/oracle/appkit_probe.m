@@ -1,6 +1,5 @@
-/* Apple oracle for the NSShadow coverage test: the defaults (offset, blur
-   radius and colour), whether the colour can be cleared, the accessor
-   round-trip and copy. */
+/* Apple oracle for the NSTrackingArea coverage test: the rect, options,
+   owner and userInfo accessors, a nil userInfo, and copy. */
 #import <Cocoa/Cocoa.h>
 
 int
@@ -8,32 +7,27 @@ main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    NSShadow *s = [[NSShadow alloc] init];
+    NSDictionary *info = @{@"k": @"v"};
+    id owner = [[NSObject alloc] init];
+    NSRect r = NSMakeRect(10, 20, 30, 40);
+    NSTrackingAreaOptions opts =
+      NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways;
 
-    NSLog(@"SHADOW default offset=%@ blur=%g",
-          NSStringFromSize([s shadowOffset]), [s shadowBlurRadius]);
-    if ([s shadowColor] == nil)
-      NSLog(@"SHADOW default color is nil");
-    else
-      NSLog(@"SHADOW default color=%@ alpha=%g colorSpace=%@",
-            [s shadowColor], [[s shadowColor] alphaComponent],
-            [[s shadowColor] colorSpaceName]);
+    NSTrackingArea *a = [[NSTrackingArea alloc] initWithRect: r
+        options: opts owner: owner userInfo: info];
+    NSLog(@"TA rect=%@ options=%lu ownerSame=%d userInfoCount=%lu userInfoV=%@",
+          NSStringFromRect([a rect]), (unsigned long)[a options],
+          [a owner] == owner, (unsigned long)[[a userInfo] count],
+          [[a userInfo] objectForKey: @"k"]);
 
-    [s setShadowColor: [NSColor redColor]];
-    [s setShadowColor: nil];
-    NSLog(@"SHADOW after setShadowColor:nil -> %@",
-          [s shadowColor] == nil ? @"nil" : [s shadowColor]);
+    NSTrackingArea *b = [[NSTrackingArea alloc] initWithRect: r
+        options: NSTrackingMouseMoved owner: owner userInfo: nil];
+    NSLog(@"TA nilInfo userInfo=%@", [b userInfo] == nil ? @"nil" : @"nonnil");
 
-    [s setShadowOffset: NSMakeSize(3.0, -4.0)];
-    [s setShadowBlurRadius: 7.5];
-    NSLog(@"SHADOW roundtrip offset=%@ blur=%g",
-          NSStringFromSize([s shadowOffset]), [s shadowBlurRadius]);
-
-    [s setShadowColor: [NSColor blueColor]];
-    NSShadow *c = [s copy];
-    [c setShadowBlurRadius: 99.0];
-    NSLog(@"SHADOW copy distinct=%d copyBlur=%g origBlurAfterCopyMutated=%g",
-          c != s, [c shadowBlurRadius], [s shadowBlurRadius]);
+    NSTrackingArea *c = [a copy];
+    NSLog(@"TA copy rect=%@ options=%lu ownerSame=%d userInfoV=%@ distinct=%d",
+          NSStringFromRect([c rect]), (unsigned long)[c options],
+          [c owner] == owner, [[c userInfo] objectForKey: @"k"], c != a);
   }
   return 0;
 }
