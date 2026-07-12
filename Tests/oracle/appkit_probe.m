@@ -1,7 +1,7 @@
-/* Apple oracle for the NSTextContainer coverage test: the defaults (container
-   size, line fragment padding, tracking flags, layout manager, text view),
-   the accessor round-trips, isSimpleRectangularTextContainer and
-   containsPoint:. */
+/* Apple oracle for the NSFontDescriptor coverage test: the attribute
+   round-trip, the pointSize/postscriptName/symbolicTraits/matrix extractors
+   (including their absent-value defaults and whether postscriptName strips
+   spaces), and the derivation methods. */
 #import <Cocoa/Cocoa.h>
 
 int
@@ -9,32 +9,40 @@ main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    NSTextContainer *t = [[NSTextContainer alloc] init];
-    NSLog(@"TC init size=%@ padding=%g wTracks=%d hTracks=%d lm=%@ tv=%@ simple=%d",
-          NSStringFromSize([t containerSize]), [t lineFragmentPadding],
-          [t widthTracksTextView], [t heightTracksTextView],
-          [t layoutManager] == nil ? @"nil" : @"set",
-          [t textView] == nil ? @"nil" : @"set",
-          [t isSimpleRectangularTextContainer]);
+    NSDictionary *attrs = @{NSFontNameAttribute: @"Helvetica",
+                            NSFontSizeAttribute: @12};
+    NSFontDescriptor *fd =
+      [NSFontDescriptor fontDescriptorWithFontAttributes: attrs];
+    NSLog(@"FD objName=%@ ps=%@ size=%g matrix=%@ traits=%u",
+          [fd objectForKey: NSFontNameAttribute], [fd postscriptName],
+          [fd pointSize], [fd matrix], (unsigned)[fd symbolicTraits]);
 
-    NSTextContainer *s = [[NSTextContainer alloc]
-      initWithContainerSize: NSMakeSize(100, 200)];
-    NSLog(@"TC initWithContainerSize size=%@", NSStringFromSize([s containerSize]));
+    NSFontDescriptor *sp = [NSFontDescriptor fontDescriptorWithFontAttributes:
+      @{NSFontNameAttribute: @"Helvetica Neue"}];
+    NSLog(@"FD spacedName ps=%@", [sp postscriptName]);
 
-    [s setContainerSize: NSMakeSize(50, 60)];
-    [s setLineFragmentPadding: 3.0];
-    [s setWidthTracksTextView: YES];
-    [s setHeightTracksTextView: YES];
-    NSLog(@"TC roundtrip size=%@ padding=%g wTracks=%d hTracks=%d",
-          NSStringFromSize([s containerSize]), [s lineFragmentPadding],
-          [s widthTracksTextView], [s heightTracksTextView]);
+    NSFontDescriptor *e =
+      [NSFontDescriptor fontDescriptorWithFontAttributes: @{}];
+    NSLog(@"FD empty ps=%@ size=%g matrix=%@ traits=%u attrCount=%lu",
+          [e postscriptName] == nil ? @"nil" : [e postscriptName],
+          [e pointSize], [e matrix] == nil ? @"nil" : @"set",
+          (unsigned)[e symbolicTraits], (unsigned long)[[e fontAttributes] count]);
 
-    NSTextContainer *p = [[NSTextContainer alloc]
-      initWithContainerSize: NSMakeSize(100, 200)];
-    NSLog(@"TC containsPoint in=%d out=%d edge=%d",
-          [p containsPoint: NSMakePoint(10, 10)],
-          [p containsPoint: NSMakePoint(150, 10)],
-          [p containsPoint: NSMakePoint(100, 200)]);
+    NSFontDescriptor *sized = [fd fontDescriptorWithSize: 24];
+    NSLog(@"FD sized=%g origUnchanged=%g distinct=%d",
+          [sized pointSize], [fd pointSize], sized != fd);
+
+    NSFontDescriptor *merged = [fd fontDescriptorByAddingAttributes:
+      @{NSFontSizeAttribute: @18, NSFontFamilyAttribute: @"Arial"}];
+    NSLog(@"FD merged size=%g family=%@ keptName=%@",
+          [merged pointSize], [merged objectForKey: NSFontFamilyAttribute],
+          [merged objectForKey: NSFontNameAttribute]);
+
+    NSFontDescriptor *tr = [e fontDescriptorWithSymbolicTraits:
+      NSFontBoldTrait | NSFontItalicTrait];
+    NSLog(@"FD traitsRoundtrip=%u boldMask=%u italicMask=%u",
+          (unsigned)[tr symbolicTraits], (unsigned)NSFontBoldTrait,
+          (unsigned)NSFontItalicTrait);
   }
   return 0;
 }
