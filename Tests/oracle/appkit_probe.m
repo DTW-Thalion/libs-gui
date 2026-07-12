@@ -1,5 +1,5 @@
-/* Apple oracle for the NSTextFieldCell coverage test: defaults and the
-   placeholder string/attributed gating. */
+/* Apple oracle for the NSComboBoxCell coverage test: defaults, the
+   internal item list, selection, and completedString:. */
 #import <Cocoa/Cocoa.h>
 
 int main(void)
@@ -9,44 +9,60 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
 
-    NSTextFieldCell *c = [[NSTextFieldCell alloc] initTextCell: @""];
-    printf("TFC default drawsBackground=%d\n", [c drawsBackground]);
-    printf("TFC default bezelStyle=%ld (square=%ld rounded=%ld)\n",
-           (long)[c bezelStyle], (long)NSTextFieldSquareBezel, (long)NSTextFieldRoundedBezel);
-    printf("TFC default textColor==textColor:%d ==controlText:%d nil:%d\n",
-           [c textColor] == [NSColor textColor],
-           [c textColor] == [NSColor controlTextColor],
-           [c textColor] == nil);
-    printf("TFC default bgColor==textBackground:%d ==control:%d nil:%d\n",
-           [c backgroundColor] == [NSColor textBackgroundColor],
-           [c backgroundColor] == [NSColor controlColor],
-           [c backgroundColor] == nil);
-    printf("TFC default placeholderString nil:%d placeholderAttr nil:%d\n",
-           [c placeholderString] == nil, [c placeholderAttributedString] == nil);
+    NSComboBoxCell *c = [[NSComboBoxCell alloc] initTextCell: @""];
+    printf("CB defaults: usesDataSource=%d hasVScroller=%d completes=%d buttonBordered=%d\n",
+           [c usesDataSource], [c hasVerticalScroller], [c completes], [c isButtonBordered]);
+    printf("CB defaults: numVisible=%ld itemHeight=%g intercell=%gx%g selected=%ld numItems=%ld\n",
+           (long)[c numberOfVisibleItems], [c itemHeight],
+           [c intercellSpacing].width, [c intercellSpacing].height,
+           (long)[c indexOfSelectedItem], (long)[c numberOfItems]);
 
-    /* Placeholder gating. */
-    NSTextFieldCell *p = [[NSTextFieldCell alloc] initTextCell: @""];
-    [p setPlaceholderString: @"type here"];
-    printf("TFC after setPlaceholderString: string='%s' attr nil:%d\n",
-           [[p placeholderString] UTF8String], [p placeholderAttributedString] == nil);
-    NSAttributedString *as = [[NSAttributedString alloc] initWithString: @"attr ph"];
-    [p setPlaceholderAttributedString: as];
-    printf("TFC after setPlaceholderAttr: string nil:%d attr.string='%s'\n",
-           [p placeholderString] == nil, [[[p placeholderAttributedString] string] UTF8String]);
+    /* Internal item list. */
+    [c addItemWithObjectValue: @"alpha"];
+    [c addItemsWithObjectValues: [NSArray arrayWithObjects: @"beta", @"gamma", nil]];
+    printf("CB after add 3: numItems=%ld item0=%s item2=%s\n",
+           (long)[c numberOfItems], [[c itemObjectValueAtIndex: 0] UTF8String],
+           [[c itemObjectValueAtIndex: 2] UTF8String]);
+    printf("CB objectValues=%s\n", [[[c objectValues] componentsJoinedByString: @","] UTF8String]);
+    printf("CB indexOf beta=%ld indexOf missing=%ld (NSNotFound=%ld)\n",
+           (long)[c indexOfItemWithObjectValue: @"beta"],
+           (long)[c indexOfItemWithObjectValue: @"zzz"], (long)NSNotFound);
 
-    /* Setters round-trip. */
-    NSTextFieldCell *s = [[NSTextFieldCell alloc] initTextCell: @""];
-    [s setDrawsBackground: YES];
-    [s setBezelStyle: NSTextFieldRoundedBezel];
-    [s setTextColor: [NSColor redColor]];
-    [s setBackgroundColor: [NSColor blueColor]];
-    printf("TFC roundtrip draws=%d bezel=%ld text==red:%d bg==blue:%d\n",
-           [s drawsBackground], (long)[s bezelStyle],
-           [s textColor] == [NSColor redColor], [s backgroundColor] == [NSColor blueColor]);
+    [c insertItemWithObjectValue: @"inserted" atIndex: 1];
+    printf("CB after insert at 1: item1=%s numItems=%ld\n",
+           [[c itemObjectValueAtIndex: 1] UTF8String], (long)[c numberOfItems]);
 
-    /* String value is stored. */
-    [s setStringValue: @"hello"];
-    printf("TFC stringValue='%s' editable=%d\n", [[s stringValue] UTF8String], [s isEditable]);
+    /* Selection. */
+    [c selectItemAtIndex: 2];
+    printf("CB select 2: selIndex=%ld selValue=%s\n",
+           (long)[c indexOfSelectedItem], [[c objectValueOfSelectedItem] UTF8String]);
+    [c selectItemWithObjectValue: @"alpha"];
+    printf("CB selectWithValue alpha: selIndex=%ld\n", (long)[c indexOfSelectedItem]);
+    [c selectItemWithObjectValue: @"nothere"];
+    printf("CB selectWithValue missing: selIndex=%ld selValue nil:%d\n",
+           (long)[c indexOfSelectedItem], [c objectValueOfSelectedItem] == nil);
+    [c selectItemAtIndex: 0];
+    [c deselectItemAtIndex: 0];
+    printf("CB deselect: selIndex=%ld\n", (long)[c indexOfSelectedItem]);
+
+    /* Removal. */
+    [c removeItemWithObjectValue: @"beta"];
+    printf("CB after remove beta: numItems=%ld indexOf beta=%ld\n",
+           (long)[c numberOfItems], (long)[c indexOfItemWithObjectValue: @"beta"]);
+    [c removeItemAtIndex: 0];
+    printf("CB after removeAt 0: item0=%s numItems=%ld\n",
+           [[c itemObjectValueAtIndex: 0] UTF8String], (long)[c numberOfItems]);
+    [c removeAllItems];
+    printf("CB after removeAll: numItems=%ld\n", (long)[c numberOfItems]);
+
+    /* completedString: prefix completion against the item list. */
+    NSComboBoxCell *cc = [[NSComboBoxCell alloc] initTextCell: @""];
+    [cc addItemsWithObjectValues:
+      [NSArray arrayWithObjects: @"Apple", @"Apricot", @"Banana", nil]];
+    printf("CB completedString 'Ap'='%s' 'Ban'='%s' 'xyz'='%s'\n",
+           [[cc completedString: @"Ap"] UTF8String],
+           [[cc completedString: @"Ban"] UTF8String],
+           [[cc completedString: @"xyz"] UTF8String]);
 
     printf("DONE\n");
   }
