@@ -1,65 +1,57 @@
-/* Apple oracle for the NSTextTab coverage test: the derived alignment and
-   tab-stop type from the two initialisers, the options round-trip, equality,
-   ordering and copy. */
+/* Apple oracle for the NSTextList coverage test: the marker-format token
+   substitutions from markerForItemNumber:, the options and marker-format
+   round-trip, the starting item number and copy. */
 #import <Cocoa/Cocoa.h>
+
+static NSString *
+codepoints(NSString *s)
+{
+  NSMutableString *h = [NSMutableString string];
+  NSUInteger i;
+  for (i = 0; i < [s length]; i++)
+    [h appendFormat: @"%04X ", [s characterAtIndex: i]];
+  return h;
+}
 
 int
 main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    int t;
+    NSArray *fmts = @[@"{decimal}", @"{lower-alpha}", @"{upper-alpha}",
+                      @"{lower-latin}", @"{upper-latin}", @"{octal}",
+                      @"{lower-hexadecimal}", @"{upper-hexadecimal}",
+                      @"{lower-roman}", @"{upper-roman}",
+                      @"{disc}", @"{circle}", @"{square}", @"{hyphen}",
+                      @"{box}", @"{check}", @"{diamond}"];
+    NSString *fmt;
 
-    for (t = 0; t <= 3; t++)
+    for (fmt in fmts)
       {
-        NSTextTab *tab = [[NSTextTab alloc] initWithType: t location: 50.0 + t];
-        NSLog(@"TAB type=%d -> loc=%g tabStopType=%d alignment=%ld",
-              t, [tab location], (int)[tab tabStopType], (long)[tab alignment]);
+        NSTextList *l = [[NSTextList alloc] initWithMarkerFormat: fmt options: 0];
+        NSString *m = [l markerForItemNumber: 3];
+        NSLog(@"MARK %@ item3 -> '%@' cp=%@", fmt, m, codepoints(m));
       }
 
-    NSTextTab *l = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentLeft
-                                                   location: 10 options: @{}];
-    NSLog(@"TAB align=Left -> tabStopType=%d alignment=%ld",
-          (int)[l tabStopType], (long)[l alignment]);
+    /* Surrounding text and item 1 for the alpha case. */
+    NSTextList *dec = [[NSTextList alloc] initWithMarkerFormat: @"({decimal})" options: 0];
+    NSLog(@"MARK ({decimal}) item5 -> '%@'", [dec markerForItemNumber: 5]);
+    NSTextList *al = [[NSTextList alloc] initWithMarkerFormat: @"{lower-alpha}" options: 0];
+    NSLog(@"MARK {lower-alpha} item1 -> '%@'", [al markerForItemNumber: 1]);
 
-    NSTextTab *r = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentRight
-                                                   location: 20 options: @{}];
-    NSLog(@"TAB align=Right noopts -> tabStopType=%d alignment=%ld",
-          (int)[r tabStopType], (long)[r alignment]);
+    /* Options, marker format, default starting number, and whether
+       markerForItemNumber: honours the starting number. */
+    NSTextList *o = [[NSTextList alloc] initWithMarkerFormat: @"{decimal}"
+        options: NSTextListPrependEnclosingMarker];
+    NSLog(@"OPTS listOptions=%u markerFormat='%@' defaultStart=%ld",
+          [o listOptions], [o markerFormat], (long)[o startingItemNumber]);
+    [o setStartingItemNumber: 10];
+    NSLog(@"OPTS afterSetStart=%ld markerItem1='%@'",
+          (long)[o startingItemNumber], [o markerForItemNumber: 1]);
 
-    NSTextTab *rd = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentRight
-        location: 20
-         options: @{NSTabColumnTerminatorsAttributeName:
-                      [NSCharacterSet whitespaceCharacterSet]}];
-    NSLog(@"TAB align=Right +terminators -> tabStopType=%d optsCount=%lu",
-          (int)[rd tabStopType], (unsigned long)[[rd options] count]);
-
-    NSTextTab *c = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentCenter
-                                                   location: 30 options: @{}];
-    NSLog(@"TAB align=Center -> tabStopType=%d alignment=%ld",
-          (int)[c tabStopType], (long)[c alignment]);
-
-    NSTextTab *j = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentJustified
-                                                   location: 40 options: @{}];
-    NSLog(@"TAB align=Justified -> tabStopType=%d alignment=%ld",
-          (int)[j tabStopType], (long)[j alignment]);
-
-    NSTextTab *a1 = [[NSTextTab alloc] initWithType: NSLeftTabStopType location: 100];
-    NSTextTab *a2 = [[NSTextTab alloc] initWithType: NSLeftTabStopType location: 100];
-    NSTextTab *a3 = [[NSTextTab alloc] initWithType: NSRightTabStopType location: 100];
-    NSTextTab *a4 = [[NSTextTab alloc] initWithType: NSLeftTabStopType location: 50];
-    NSLog(@"TAB isEqual same=%d difftype=%d diffloc=%d",
-          [a1 isEqual: a2], [a1 isEqual: a3], [a1 isEqual: a4]);
-    NSLog(@"TAB compare a4(50) vs a1(100) = %ld", (long)[a4 compare: a1]);
-
-    NSTextTab *cp = [a3 copy];
-    NSLog(@"TAB copy loc=%g tabStopType=%d isEqual=%d",
-          [cp location], (int)[cp tabStopType], [cp isEqual: a3]);
-
-    NSLog(@"ALIGN consts left=%ld right=%ld center=%ld justified=%ld natural=%ld",
-          (long)NSTextAlignmentLeft, (long)NSTextAlignmentRight,
-          (long)NSTextAlignmentCenter, (long)NSTextAlignmentJustified,
-          (long)NSTextAlignmentNatural);
+    NSTextList *cp = [o copy];
+    NSLog(@"COPY markerFormat='%@' listOptions=%u start=%ld",
+          [cp markerFormat], [cp listOptions], (long)[cp startingItemNumber]);
   }
   return 0;
 }
