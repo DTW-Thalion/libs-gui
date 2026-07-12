@@ -1,5 +1,6 @@
-/* Apple oracle for the NSTableColumn coverage test: defaults, width
-   clamping, the resizable/resizing-mask relationship, and the title. */
+/* Apple oracle for the NSTextView typing-attributes coverage test:
+   defaults, typing attributes, font/colour, and the editable/selectable
+   coupling. */
 #import <Cocoa/Cocoa.h>
 
 int main(void)
@@ -9,59 +10,48 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
 
-    NSTableColumn *c = [[NSTableColumn alloc] initWithIdentifier: @"col1"];
-    printf("TC identifier='%s'\n", [[c identifier] UTF8String]);
-    printf("TC defaults: width=%g minWidth=%g maxWidth=%g resizingMask=%lu\n",
-           [c width], [c minWidth], [c maxWidth], (unsigned long)[c resizingMask]);
-    printf("TC defaults: resizable=%d editable=%d hidden=%d\n",
-           [c isResizable], [c isEditable], [c isHidden]);
-    printf("TC defaults: headerCell=%s dataCell=%s\n",
-           [NSStringFromClass([[c headerCell] class]) UTF8String],
-           [NSStringFromClass([[c dataCell] class]) UTF8String]);
+    NSTextView *tv = [[NSTextView alloc] initWithFrame: NSMakeRect(0, 0, 200, 100)];
+    printf("TV flags: editable=%d selectable=%d richText=%d fieldEditor=%d drawsBg=%d\n",
+           [tv isEditable], [tv isSelectable], [tv isRichText],
+           [tv isFieldEditor], [tv drawsBackground]);
 
-    /* Width clamping. */
-    [c setMinWidth: 20];
-    [c setMaxWidth: 200];
-    [c setWidth: 50];
-    printf("TC setWidth 50 -> %g\n", [c width]);
-    [c setWidth: 5];
-    printf("TC setWidth 5 (below min 20) -> %g\n", [c width]);
-    [c setWidth: 500];
-    printf("TC setWidth 500 (above max 200) -> %g\n", [c width]);
+    NSDictionary *ta = [tv typingAttributes];
+    printf("TV default typingAttributes: hasFont=%d hasColor=%d hasPara=%d count=%lu\n",
+           [ta objectForKey: NSFontAttributeName] != nil,
+           [ta objectForKey: NSForegroundColorAttributeName] != nil,
+           [ta objectForKey: NSParagraphStyleAttributeName] != nil,
+           (unsigned long)[ta count]);
 
-    /* setMinWidth / setMaxWidth push the width. */
-    [c setWidth: 100];
-    [c setMinWidth: 150];
-    printf("TC width=100 then setMinWidth 150 -> width=%g\n", [c width]);
-    [c setWidth: 180];
-    [c setMaxWidth: 160];
-    printf("TC width=180 then setMaxWidth 160 -> width=%g\n", [c width]);
+    [tv setString: @"hello"];
+    printf("TV setString: string='%s' len=%lu\n",
+           [[tv string] UTF8String], (unsigned long)[[tv string] length]);
 
-    /* The resizable / resizing-mask relationship. */
-    NSTableColumn *r = [[NSTableColumn alloc] initWithIdentifier: @"r"];
-    [r setResizingMask: NSTableColumnNoResizing];
-    printf("TC setResizingMask 0 -> isResizable=%d\n", [r isResizable]);
-    [r setResizingMask: NSTableColumnUserResizingMask];
-    printf("TC setResizingMask User -> isResizable=%d\n", [r isResizable]);
-    NSTableColumn *r2 = [[NSTableColumn alloc] initWithIdentifier: @"r2"];
-    [r2 setResizable: NO];
-    printf("TC setResizable NO -> resizingMask=%lu isResizable=%d\n",
-           (unsigned long)[r2 resizingMask], [r2 isResizable]);
-    [r2 setResizable: YES];
-    printf("TC setResizable YES -> resizingMask=%lu isResizable=%d\n",
-           (unsigned long)[r2 resizingMask], [r2 isResizable]);
+    [tv setFont: [NSFont systemFontOfSize: 20]];
+    printf("TV setFont 20: font.pt=%g typingFont.pt=%g\n",
+           [[tv font] pointSize],
+           [[[tv typingAttributes] objectForKey: NSFontAttributeName] pointSize]);
 
-    /* Title convenience (goes through the header cell). */
-    [c setTitle: @"Name"];
-    printf("TC setTitle -> title='%s' headerCell.stringValue='%s'\n",
-           [[c title] UTF8String], [[[c headerCell] stringValue] UTF8String]);
+    [tv setTextColor: [NSColor redColor]];
+    printf("TV setTextColor red: typingColor==red:%d\n",
+           [[[tv typingAttributes] objectForKey: NSForegroundColorAttributeName]
+             isEqual: [NSColor redColor]]);
 
-    /* Simple round-trips. */
+    NSMutableDictionary *custom = [NSMutableDictionary dictionary];
+    [custom setObject: [NSFont systemFontOfSize: 30] forKey: NSFontAttributeName];
+    [tv setTypingAttributes: custom];
+    printf("TV setTypingAttributes: font.pt=%g count=%lu\n",
+           [[[tv typingAttributes] objectForKey: NSFontAttributeName] pointSize],
+           (unsigned long)[[tv typingAttributes] count]);
+
+    /* editable / selectable coupling. */
+    NSTextView *c = [[NSTextView alloc] initWithFrame: NSMakeRect(0, 0, 200, 100)];
     [c setEditable: NO];
-    [c setHidden: YES];
-    [c setIdentifier: @"other"];
-    printf("TC roundtrip editable=%d hidden=%d identifier='%s'\n",
-           [c isEditable], [c isHidden], [[c identifier] UTF8String]);
+    printf("TV setEditable NO: editable=%d selectable=%d\n", [c isEditable], [c isSelectable]);
+    [c setSelectable: NO];
+    printf("TV setSelectable NO: editable=%d selectable=%d\n", [c isEditable], [c isSelectable]);
+    [c setEditable: YES];
+    printf("TV setEditable YES (while not selectable): editable=%d selectable=%d\n",
+           [c isEditable], [c isSelectable]);
 
     printf("DONE\n");
   }
