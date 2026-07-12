@@ -1,7 +1,5 @@
-/* Apple oracle for the NSFontDescriptor coverage test: the attribute
-   round-trip, the pointSize/postscriptName/symbolicTraits/matrix extractors
-   (including their absent-value defaults and whether postscriptName strips
-   spaces), and the derivation methods. */
+/* Apple oracle for the NSTextTable coverage test: the enum values, the
+   NSTextBlock and NSTextTable defaults and round-trips, and NSTextTableBlock. */
 #import <Cocoa/Cocoa.h>
 
 int
@@ -9,40 +7,58 @@ main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    NSDictionary *attrs = @{NSFontNameAttribute: @"Helvetica",
-                            NSFontSizeAttribute: @12};
-    NSFontDescriptor *fd =
-      [NSFontDescriptor fontDescriptorWithFontAttributes: attrs];
-    NSLog(@"FD objName=%@ ps=%@ size=%g matrix=%@ traits=%u",
-          [fd objectForKey: NSFontNameAttribute], [fd postscriptName],
-          [fd pointSize], [fd matrix], (unsigned)[fd symbolicTraits]);
+    NSLog(@"ENUM valueType abs=%d pct=%d",
+          (int)NSTextBlockAbsoluteValueType, (int)NSTextBlockPercentageValueType);
+    NSLog(@"ENUM dim W=%d minW=%d maxW=%d H=%d minH=%d maxH=%d",
+          (int)NSTextBlockWidth, (int)NSTextBlockMinimumWidth,
+          (int)NSTextBlockMaximumWidth, (int)NSTextBlockHeight,
+          (int)NSTextBlockMinimumHeight, (int)NSTextBlockMaximumHeight);
+    NSLog(@"ENUM layer pad=%d border=%d margin=%d",
+          (int)NSTextBlockPadding, (int)NSTextBlockBorder, (int)NSTextBlockMargin);
+    NSLog(@"ENUM valign top=%d mid=%d bot=%d base=%d",
+          (int)NSTextBlockTopAlignment, (int)NSTextBlockMiddleAlignment,
+          (int)NSTextBlockBottomAlignment, (int)NSTextBlockBaselineAlignment);
+    NSLog(@"ENUM layout auto=%d fixed=%d",
+          (int)NSTextTableAutomaticLayoutAlgorithm,
+          (int)NSTextTableFixedLayoutAlgorithm);
 
-    NSFontDescriptor *sp = [NSFontDescriptor fontDescriptorWithFontAttributes:
-      @{NSFontNameAttribute: @"Helvetica Neue"}];
-    NSLog(@"FD spacedName ps=%@", [sp postscriptName]);
+    NSTextBlock *b = [[NSTextBlock alloc] init];
+    NSLog(@"BLOCK default valign=%d widthW=%g bg=%@ borderMinX=%@",
+          (int)[b verticalAlignment], [b valueForDimension: NSTextBlockWidth],
+          [b backgroundColor] == nil ? @"nil" : @"set",
+          [b borderColorForEdge: NSMinXEdge] == nil ? @"nil" : @"set");
 
-    NSFontDescriptor *e =
-      [NSFontDescriptor fontDescriptorWithFontAttributes: @{}];
-    NSLog(@"FD empty ps=%@ size=%g matrix=%@ traits=%u attrCount=%lu",
-          [e postscriptName] == nil ? @"nil" : [e postscriptName],
-          [e pointSize], [e matrix] == nil ? @"nil" : @"set",
-          (unsigned)[e symbolicTraits], (unsigned long)[[e fontAttributes] count]);
+    [b setContentWidth: 100 type: NSTextBlockAbsoluteValueType];
+    NSLog(@"BLOCK contentWidth=%g type=%d",
+          [b contentWidth], (int)[b contentWidthValueType]);
+    [b setValue: 50 type: NSTextBlockPercentageValueType
+       forDimension: NSTextBlockMinimumWidth];
+    NSLog(@"BLOCK minW=%g minWtype=%d",
+          [b valueForDimension: NSTextBlockMinimumWidth],
+          (int)[b valueTypeForDimension: NSTextBlockMinimumWidth]);
+    [b setWidth: 3 type: NSTextBlockAbsoluteValueType
+       forLayer: NSTextBlockBorder edge: NSMaxYEdge];
+    NSLog(@"BLOCK borderMaxY=%g", [b widthForLayer: NSTextBlockBorder edge: NSMaxYEdge]);
+    [b setVerticalAlignment: NSTextBlockMiddleAlignment];
+    NSLog(@"BLOCK valignSet=%d", (int)[b verticalAlignment]);
 
-    NSFontDescriptor *sized = [fd fontDescriptorWithSize: 24];
-    NSLog(@"FD sized=%g origUnchanged=%g distinct=%d",
-          [sized pointSize], [fd pointSize], sized != fd);
+    NSTextTable *t = [[NSTextTable alloc] init];
+    NSLog(@"TABLE default cols=%lu layout=%d collapses=%d hides=%d",
+          (unsigned long)[t numberOfColumns], (int)[t layoutAlgorithm],
+          [t collapsesBorders], [t hidesEmptyCells]);
+    [t setNumberOfColumns: 3];
+    [t setLayoutAlgorithm: NSTextTableFixedLayoutAlgorithm];
+    [t setCollapsesBorders: YES];
+    [t setHidesEmptyCells: YES];
+    NSLog(@"TABLE rt cols=%lu layout=%d collapses=%d hides=%d",
+          (unsigned long)[t numberOfColumns], (int)[t layoutAlgorithm],
+          [t collapsesBorders], [t hidesEmptyCells]);
 
-    NSFontDescriptor *merged = [fd fontDescriptorByAddingAttributes:
-      @{NSFontSizeAttribute: @18, NSFontFamilyAttribute: @"Arial"}];
-    NSLog(@"FD merged size=%g family=%@ keptName=%@",
-          [merged pointSize], [merged objectForKey: NSFontFamilyAttribute],
-          [merged objectForKey: NSFontNameAttribute]);
-
-    NSFontDescriptor *tr = [e fontDescriptorWithSymbolicTraits:
-      NSFontBoldTrait | NSFontItalicTrait];
-    NSLog(@"FD traitsRoundtrip=%u boldMask=%u italicMask=%u",
-          (unsigned)[tr symbolicTraits], (unsigned)NSFontBoldTrait,
-          (unsigned)NSFontItalicTrait);
+    NSTextTableBlock *tb = [[NSTextTableBlock alloc] initWithTable: t
+      startingRow: 1 rowSpan: 2 startingColumn: 3 columnSpan: 4];
+    NSLog(@"TBLOCK row=%d rspan=%d col=%d cspan=%d tableSame=%d",
+          [tb startingRow], [tb rowSpan], [tb startingColumn],
+          [tb columnSpan], [tb table] == t);
   }
   return 0;
 }
