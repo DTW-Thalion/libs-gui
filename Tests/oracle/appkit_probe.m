@@ -1,46 +1,65 @@
-/* Apple oracle for the NSBrowser configuration coverage test: the many
-   selection/column/title flag defaults, the path separator, and the
-   numeric configuration. */
+/* Apple oracle for the NSTextTab coverage test: the derived alignment and
+   tab-stop type from the two initialisers, the options round-trip, equality,
+   ordering and copy. */
 #import <Cocoa/Cocoa.h>
 
-int main(void)
+int
+main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    setvbuf(stdout, NULL, _IONBF, 0);
-    [NSApplication sharedApplication];
+    int t;
 
-    NSBrowser *b = [[NSBrowser alloc] initWithFrame: NSMakeRect(0, 0, 300, 200)];
+    for (t = 0; t <= 3; t++)
+      {
+        NSTextTab *tab = [[NSTextTab alloc] initWithType: t location: 50.0 + t];
+        NSLog(@"TAB type=%d -> loc=%g tabStopType=%d alignment=%ld",
+              t, [tab location], (int)[tab tabStopType], (long)[tab alignment]);
+      }
 
-    printf("BR flags: branch=%d empty=%d multi=%d reuses=%d takesTitle=%d\n",
-           [b allowsBranchSelection], [b allowsEmptySelection],
-           [b allowsMultipleSelection], [b reusesColumns],
-           [b takesTitleFromPreviousColumn]);
-    printf("BR flags: separates=%d titled=%d hScroller=%d arrowKeys=%d\n",
-           [b separatesColumns], [b isTitled], [b hasHorizontalScroller],
-           [b sendsActionOnArrowKeys]);
-    printf("BR flags: prefersAllColResize=%d\n", [b prefersAllColumnUserResizing]);
-    printf("BR pathSeparator='%s' minColWidth=%g maxVisibleCols=%ld colResizeType=%ld\n",
-           [[b pathSeparator] UTF8String], [b minColumnWidth],
-           (long)[b maxVisibleColumns], (long)[b columnResizingType]);
-    printf("BR cellPrototype class=%s\n",
-           [NSStringFromClass([[b cellPrototype] class]) UTF8String]);
+    NSTextTab *l = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentLeft
+                                                   location: 10 options: @{}];
+    NSLog(@"TAB align=Left -> tabStopType=%d alignment=%ld",
+          (int)[l tabStopType], (long)[l alignment]);
 
-    /* Round-trips. */
-    [b setAllowsMultipleSelection: YES];
-    [b setAllowsEmptySelection: YES];
-    [b setSeparatesColumns: NO];
-    [b setTitled: NO];
-    [b setPathSeparator: @":"];
-    [b setMinColumnWidth: 120.0];
-    [b setMaxVisibleColumns: 4];
-    [b setColumnResizingType: NSBrowserUserColumnResizing];
-    printf("BR roundtrip: multi=%d empty=%d separates=%d titled=%d sep='%s' minW=%g maxCols=%ld resize=%ld\n",
-           [b allowsMultipleSelection], [b allowsEmptySelection],
-           [b separatesColumns], [b isTitled], [[b pathSeparator] UTF8String],
-           [b minColumnWidth], (long)[b maxVisibleColumns], (long)[b columnResizingType]);
+    NSTextTab *r = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentRight
+                                                   location: 20 options: @{}];
+    NSLog(@"TAB align=Right noopts -> tabStopType=%d alignment=%ld",
+          (int)[r tabStopType], (long)[r alignment]);
 
-    printf("DONE\n");
+    NSTextTab *rd = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentRight
+        location: 20
+         options: @{NSTabColumnTerminatorsAttributeName:
+                      [NSCharacterSet whitespaceCharacterSet]}];
+    NSLog(@"TAB align=Right +terminators -> tabStopType=%d optsCount=%lu",
+          (int)[rd tabStopType], (unsigned long)[[rd options] count]);
+
+    NSTextTab *c = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentCenter
+                                                   location: 30 options: @{}];
+    NSLog(@"TAB align=Center -> tabStopType=%d alignment=%ld",
+          (int)[c tabStopType], (long)[c alignment]);
+
+    NSTextTab *j = [[NSTextTab alloc] initWithTextAlignment: NSTextAlignmentJustified
+                                                   location: 40 options: @{}];
+    NSLog(@"TAB align=Justified -> tabStopType=%d alignment=%ld",
+          (int)[j tabStopType], (long)[j alignment]);
+
+    NSTextTab *a1 = [[NSTextTab alloc] initWithType: NSLeftTabStopType location: 100];
+    NSTextTab *a2 = [[NSTextTab alloc] initWithType: NSLeftTabStopType location: 100];
+    NSTextTab *a3 = [[NSTextTab alloc] initWithType: NSRightTabStopType location: 100];
+    NSTextTab *a4 = [[NSTextTab alloc] initWithType: NSLeftTabStopType location: 50];
+    NSLog(@"TAB isEqual same=%d difftype=%d diffloc=%d",
+          [a1 isEqual: a2], [a1 isEqual: a3], [a1 isEqual: a4]);
+    NSLog(@"TAB compare a4(50) vs a1(100) = %ld", (long)[a4 compare: a1]);
+
+    NSTextTab *cp = [a3 copy];
+    NSLog(@"TAB copy loc=%g tabStopType=%d isEqual=%d",
+          [cp location], (int)[cp tabStopType], [cp isEqual: a3]);
+
+    NSLog(@"ALIGN consts left=%ld right=%ld center=%ld justified=%ld natural=%ld",
+          (long)NSTextAlignmentLeft, (long)NSTextAlignmentRight,
+          (long)NSTextAlignmentCenter, (long)NSTextAlignmentJustified,
+          (long)NSTextAlignmentNatural);
   }
   return 0;
 }
