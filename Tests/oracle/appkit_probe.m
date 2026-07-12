@@ -1,6 +1,6 @@
-/* Apple oracle for the NSTextView typing-attributes coverage test:
-   defaults, typing attributes, font/colour, and the editable/selectable
-   coupling. */
+/* Apple oracle for the NSMatrix grid-management coverage test:
+   dimensions, add/insert/remove rows and columns, the cell class and
+   prototype, cell size, getRow:column:ofCell:, and cellWithTag:. */
 #import <Cocoa/Cocoa.h>
 
 int main(void)
@@ -10,48 +10,59 @@ int main(void)
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
 
-    NSTextView *tv = [[NSTextView alloc] initWithFrame: NSMakeRect(0, 0, 200, 100)];
-    printf("TV flags: editable=%d selectable=%d richText=%d fieldEditor=%d drawsBg=%d\n",
-           [tv isEditable], [tv isSelectable], [tv isRichText],
-           [tv isFieldEditor], [tv drawsBackground]);
+    NSButtonCell *proto = [[NSButtonCell alloc] init];
+    NSMatrix *m = [[NSMatrix alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)
+                                             mode: NSListModeMatrix
+                                        prototype: proto
+                                     numberOfRows: 2
+                                  numberOfColumns: 3];
+    printf("MX dims: rows=%ld cols=%ld\n",
+           (long)[m numberOfRows], (long)[m numberOfColumns]);
+    printf("MX prototype isButtonCell=%d cellClass=%s\n",
+           [[m prototype] isKindOfClass: [NSButtonCell class]] ,
+           [NSStringFromClass([m cellClass]) UTF8String]);
+    printf("MX cellAtRow00 isButtonCell=%d\n",
+           [[m cellAtRow: 0 column: 0] isKindOfClass: [NSButtonCell class]]);
 
-    NSDictionary *ta = [tv typingAttributes];
-    printf("TV default typingAttributes: hasFont=%d hasColor=%d hasPara=%d count=%lu\n",
-           [ta objectForKey: NSFontAttributeName] != nil,
-           [ta objectForKey: NSForegroundColorAttributeName] != nil,
-           [ta objectForKey: NSParagraphStyleAttributeName] != nil,
-           (unsigned long)[ta count]);
+    /* Add a row and a column. */
+    [m addRow];
+    [m addColumn];
+    printf("MX after addRow/addColumn: rows=%ld cols=%ld\n",
+           (long)[m numberOfRows], (long)[m numberOfColumns]);
 
-    [tv setString: @"hello"];
-    printf("TV setString: string='%s' len=%lu\n",
-           [[tv string] UTF8String], (unsigned long)[[tv string] length]);
+    /* Insert / remove. */
+    [m insertRow: 1];
+    printf("MX after insertRow 1: rows=%ld\n", (long)[m numberOfRows]);
+    [m removeRow: 0];
+    printf("MX after removeRow 0: rows=%ld\n", (long)[m numberOfRows]);
+    [m removeColumn: 0];
+    printf("MX after removeColumn 0: cols=%ld\n", (long)[m numberOfColumns]);
 
-    [tv setFont: [NSFont systemFontOfSize: 20]];
-    printf("TV setFont 20: font.pt=%g typingFont.pt=%g\n",
-           [[tv font] pointSize],
-           [[[tv typingAttributes] objectForKey: NSFontAttributeName] pointSize]);
+    /* getRow:column:ofCell:. */
+    NSCell *c12 = [m cellAtRow: 1 column: 2];
+    NSInteger gr = -9, gc = -9;
+    BOOL found = [m getRow: &gr column: &gc ofCell: c12];
+    printf("MX getRow:column:ofCell: found=%d row=%ld col=%ld\n", found, (long)gr, (long)gc);
 
-    [tv setTextColor: [NSColor redColor]];
-    printf("TV setTextColor red: typingColor==red:%d\n",
-           [[[tv typingAttributes] objectForKey: NSForegroundColorAttributeName]
-             isEqual: [NSColor redColor]]);
+    /* Tag lookup. */
+    [[m cellAtRow: 0 column: 0] setTag: 77];
+    printf("MX cellWithTag 77==cell00:%d cellWithTag 99 nil:%d\n",
+           [m cellWithTag: 77] == [m cellAtRow: 0 column: 0],
+           [m cellWithTag: 99] == nil);
 
-    NSMutableDictionary *custom = [NSMutableDictionary dictionary];
-    [custom setObject: [NSFont systemFontOfSize: 30] forKey: NSFontAttributeName];
-    [tv setTypingAttributes: custom];
-    printf("TV setTypingAttributes: font.pt=%g count=%lu\n",
-           [[[tv typingAttributes] objectForKey: NSFontAttributeName] pointSize],
-           (unsigned long)[[tv typingAttributes] count]);
+    /* Cell size round-trips. */
+    [m setCellSize: NSMakeSize(40, 18)];
+    printf("MX cellSize=%gx%g\n", [m cellSize].width, [m cellSize].height);
 
-    /* editable / selectable coupling. */
-    NSTextView *c = [[NSTextView alloc] initWithFrame: NSMakeRect(0, 0, 200, 100)];
-    [c setEditable: NO];
-    printf("TV setEditable NO: editable=%d selectable=%d\n", [c isEditable], [c isSelectable]);
-    [c setSelectable: NO];
-    printf("TV setSelectable NO: editable=%d selectable=%d\n", [c isEditable], [c isSelectable]);
-    [c setEditable: YES];
-    printf("TV setEditable YES (while not selectable): editable=%d selectable=%d\n",
-           [c isEditable], [c isSelectable]);
+    /* Mode round-trips. */
+    [m setMode: NSRadioModeMatrix];
+    printf("MX mode=%ld (radio=%ld)\n", (long)[m mode], (long)NSRadioModeMatrix);
+
+    /* putCell: replaces a cell. */
+    NSButtonCell *repl = [[NSButtonCell alloc] init];
+    [repl setTag: 555];
+    [m putCell: repl atRow: 0 column: 0];
+    printf("MX putCell: cell00.tag=%ld\n", (long)[[m cellAtRow: 0 column: 0] tag]);
 
     printf("DONE\n");
   }
