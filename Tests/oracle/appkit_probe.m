@@ -1,6 +1,6 @@
-/* Apple oracle for the NSTreeNode coverage test: the represented object, the
-   leaf/child/parent relationships built through mutableChildNodes, the index
-   path (including the root) and descendantNodeAtIndexPath:. */
+/* Apple oracle for the NSObjectController coverage test: the defaults
+   (content, object class, editable, automaticallyPreparesContent), newObject,
+   the content and selectedObjects round-trip, add/remove and canAdd/canRemove. */
 #import <Cocoa/Cocoa.h>
 
 int
@@ -8,39 +8,38 @@ main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    NSTreeNode *root = [NSTreeNode treeNodeWithRepresentedObject: @"root"];
-    NSIndexPath *rip = [root indexPath];
-    NSLog(@"TN root repObj=%@ isLeaf=%d childCount=%lu parent=%@ ipNil=%d ipLen=%lu",
-          [root representedObject], [root isLeaf],
-          (unsigned long)[[root childNodes] count],
-          [root parentNode] == nil ? @"nil" : @"set",
-          rip == nil, (unsigned long)[rip length]);
+    NSObjectController *oc = [[NSObjectController alloc] init];
+    NSLog(@"OC init content=%@ objectClass=%@ editable=%d autoPrep=%d "
+          @"selCount=%lu canAdd=%d canRemove=%d",
+          [oc content] == nil ? @"nil" : @"set",
+          NSStringFromClass([oc objectClass]), [oc isEditable],
+          [oc automaticallyPreparesContent],
+          (unsigned long)[[oc selectedObjects] count],
+          [oc canAdd], [oc canRemove]);
 
-    NSTreeNode *c0 = [NSTreeNode treeNodeWithRepresentedObject: @"c0"];
-    NSTreeNode *c1 = [NSTreeNode treeNodeWithRepresentedObject: @"c1"];
-    [[root mutableChildNodes] addObject: c0];
-    [[root mutableChildNodes] addObject: c1];
-    NSLog(@"TN afterAdd rootLeaf=%d childCount=%lu c0parentSame=%d",
-          [root isLeaf], (unsigned long)[[root childNodes] count],
-          [c0 parentNode] == root);
-    NSLog(@"TN c1 ipLen=%lu idx0=%lu",
-          (unsigned long)[[c1 indexPath] length],
-          (unsigned long)[[c1 indexPath] indexAtPosition: 0]);
+    id newObj = [oc newObject];
+    NSLog(@"OC newObject class=%@", NSStringFromClass([newObj class]));
 
-    NSTreeNode *gc = [NSTreeNode treeNodeWithRepresentedObject: @"gc"];
-    [[c1 mutableChildNodes] addObject: gc];
-    NSLog(@"TN gc ipLen=%lu p0=%lu p1=%lu",
-          (unsigned long)[[gc indexPath] length],
-          (unsigned long)[[gc indexPath] indexAtPosition: 0],
-          (unsigned long)[[gc indexPath] indexAtPosition: 1]);
+    NSMutableDictionary *d = [NSMutableDictionary dictionary];
+    [oc setContent: d];
+    NSLog(@"OC afterSet contentSame=%d selCount=%lu sel0Same=%d canRemove=%d",
+          [oc content] == d, (unsigned long)[[oc selectedObjects] count],
+          [[oc selectedObjects] count] > 0
+            && [[oc selectedObjects] objectAtIndex: 0] == d,
+          [oc canRemove]);
 
-    NSIndexPath *ip = [[NSIndexPath indexPathWithIndex: 1] indexPathByAddingIndex: 0];
-    NSLog(@"TN descendant[1,0]same=%d", [root descendantNodeAtIndexPath: ip] == gc);
+    NSObjectController *oc2 = [[NSObjectController alloc] initWithContent: d];
+    NSLog(@"OC initWithContent same=%d", [oc2 content] == d);
 
-    NSIndexPath *empty = [[NSIndexPath alloc] init];
-    NSLog(@"TN descendantEmpty=%@ (len=%lu)",
-          [root descendantNodeAtIndexPath: empty] == root ? @"self" : @"other",
-          (unsigned long)[empty length]);
+    [oc setEditable: NO];
+    NSLog(@"OC notEditable canAdd=%d canRemove=%d", [oc canAdd], [oc canRemove]);
+
+    NSObjectController *oc3 = [[NSObjectController alloc] init];
+    id o = [NSMutableDictionary dictionary];
+    [oc3 addObject: o];
+    NSLog(@"OC addObject contentSame=%d", [oc3 content] == o);
+    [oc3 removeObject: o];
+    NSLog(@"OC removeObject content=%@", [oc3 content] == nil ? @"nil" : @"set");
   }
   return 0;
 }
