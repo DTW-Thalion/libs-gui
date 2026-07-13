@@ -1,33 +1,37 @@
-/* Apple oracle for the NSTextAttachment coverage test: the default
-   attachment cell, the file wrapper round-trip, and the attachment cell
-   round-trip with its back reference. */
+/* Apple oracle for the NSColorSpace coverage test: the model enum values, and
+   the model, component count, name, ICC data and singleton identity of the
+   standard colour spaces. */
 #import <Cocoa/Cocoa.h>
+
+static void
+dump(NSString *label, NSColorSpace *cs)
+{
+  NSLog(@"CS %@ model=%d comps=%d name=%@ icc=%@",
+        label, (int)[cs colorSpaceModel], [cs numberOfColorComponents],
+        [cs localizedName], [cs ICCProfileData] == nil ? @"nil" : @"set");
+}
 
 int
 main(int argc, const char **argv)
 {
   @autoreleasepool
   {
-    NSTextAttachment *a = [[NSTextAttachment alloc] initWithFileWrapper: nil];
-    NSLog(@"TA initNil fileWrapper=%@ cell=%@",
-          [a fileWrapper] == nil ? @"nil" : @"set",
-          [a attachmentCell] == nil ? @"nil" : NSStringFromClass([(id)[a attachmentCell] class]));
+    NSLog(@"ENUM unknown=%d gray=%d rgb=%d cmyk=%d lab=%d deviceN=%d",
+          (int)NSUnknownColorSpaceModel, (int)NSGrayColorSpaceModel,
+          (int)NSRGBColorSpaceModel, (int)NSCMYKColorSpaceModel,
+          (int)NSLABColorSpaceModel, (int)NSDeviceNColorSpaceModel);
 
-    NSData *data = [@"hello" dataUsingEncoding: NSUTF8StringEncoding];
-    NSFileWrapper *fw = [[NSFileWrapper alloc] initRegularFileWithContents: data];
-    NSTextAttachment *b = [[NSTextAttachment alloc] initWithFileWrapper: fw];
-    NSLog(@"TA initFW fileWrapperSame=%d cell=%@",
-          [b fileWrapper] == fw,
-          [b attachmentCell] == nil ? @"nil" : NSStringFromClass([(id)[b attachmentCell] class]));
+    dump(@"genericRGB", [NSColorSpace genericRGBColorSpace]);
+    dump(@"genericGray", [NSColorSpace genericGrayColorSpace]);
+    dump(@"genericCMYK", [NSColorSpace genericCMYKColorSpace]);
+    dump(@"deviceRGB", [NSColorSpace deviceRGBColorSpace]);
+    dump(@"deviceGray", [NSColorSpace deviceGrayColorSpace]);
+    dump(@"deviceCMYK", [NSColorSpace deviceCMYKColorSpace]);
 
-    NSTextAttachment *c = [[NSTextAttachment alloc] init];
-    [c setFileWrapper: fw];
-    NSLog(@"TA setFW same=%d", [c fileWrapper] == fw);
-
-    NSTextAttachmentCell *cell = [[NSTextAttachmentCell alloc] init];
-    [c setAttachmentCell: cell];
-    NSLog(@"TA setCell same=%d cellAttachmentSame=%d",
-          [c attachmentCell] == cell, [cell attachment] == c);
+    NSLog(@"CS singleton genericRGB=%d deviceRGB=%d generic-vs-device=%d",
+          [NSColorSpace genericRGBColorSpace] == [NSColorSpace genericRGBColorSpace],
+          [NSColorSpace deviceRGBColorSpace] == [NSColorSpace deviceRGBColorSpace],
+          [NSColorSpace genericRGBColorSpace] == [NSColorSpace deviceRGBColorSpace]);
   }
   return 0;
 }
