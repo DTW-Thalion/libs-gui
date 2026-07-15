@@ -1,20 +1,14 @@
-/* Apple oracle for the NSGlyphInfo coverage test.  Probes the character
-   collection enum and the three factory methods (character identifier, CG
-   glyph, glyph name) with their readonly accessors (characterIdentifier,
-   characterCollection, baseString, glyphID, glyphName).  Portable so the same
-   file runs under GNUstep for an A/B. */
+/* Apple oracle for the NSCollectionViewFlowLayout coverage test.  Probes the
+   scroll-direction enum, the init defaults (minimumLineSpacing,
+   minimumInteritemSpacing, itemSize, estimatedItemSize, scrollDirection,
+   header/footer reference sizes, sectionInset, pin flags) and the plain setter
+   round-trips.  Portable so the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
 #include <stdio.h>
-
-static const char *
-s(NSString *v)
-{
-  return v == nil ? "nil" : (const char *)[v UTF8String];
-}
 
 int
 main(int argc, const char **argv)
@@ -24,35 +18,47 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM coll Identity=%d CNS1=%d GB1=%d Japan1=%d Japan2=%d Korea1=%d\n",
-           (int)NSIdentityMappingCharacterCollection,
-           (int)NSAdobeCNS1CharacterCollection,
-           (int)NSAdobeGB1CharacterCollection,
-           (int)NSAdobeJapan1CharacterCollection,
-           (int)NSAdobeJapan2CharacterCollection,
-           (int)NSAdobeKorea1CharacterCollection);
+    printf("ENUM scroll Vertical=%d Horizontal=%d\n",
+           (int)NSCollectionViewScrollDirectionVertical,
+           (int)NSCollectionViewScrollDirectionHorizontal);
 
-    NSGlyphInfo *g1 = [NSGlyphInfo
-        glyphInfoWithCharacterIdentifier: 42
-                              collection: NSAdobeJapan1CharacterCollection
-                              baseString: @"X"];
-    printf("CID nonnil=%d cid=%lu coll=%lu base=%s glyphName=%s\n",
-           g1 != nil, (unsigned long)[g1 characterIdentifier],
-           (unsigned long)[g1 characterCollection],
-           s([g1 baseString]), s([g1 glyphName]));
+    NSCollectionViewFlowLayout *l = [[NSCollectionViewFlowLayout alloc] init];
+    printf("INIT lineSpacing=%g interitem=%g itemSize=%gx%g estItemSize=%gx%g scroll=%ld\n",
+           [l minimumLineSpacing], [l minimumInteritemSpacing],
+           [l itemSize].width, [l itemSize].height,
+           [l estimatedItemSize].width, [l estimatedItemSize].height,
+           (long)[l scrollDirection]);
+    printf("INIT header=%gx%g footer=%gx%g inset=%g,%g,%g,%g\n",
+           [l headerReferenceSize].width, [l headerReferenceSize].height,
+           [l footerReferenceSize].width, [l footerReferenceSize].height,
+           [l sectionInset].top, [l sectionInset].left,
+           [l sectionInset].bottom, [l sectionInset].right);
+    printf("INIT pinHeaders=%d pinFooters=%d\n",
+           [l sectionHeadersPinToVisibleBounds],
+           [l sectionFootersPinToVisibleBounds]);
 
-    NSFont *font = [NSFont systemFontOfSize: 12];
-    NSGlyphInfo *g2 = [NSGlyphInfo glyphInfoWithCGGlyph: 36
-                                               forFont: font
-                                            baseString: @"A"];
-    printf("CGG nonnil=%d glyphID=%d base=%s\n",
-           g2 != nil, (int)[g2 glyphID], s([g2 baseString]));
-
-    NSGlyphInfo *g3 = [NSGlyphInfo glyphInfoWithGlyphName: @"A"
-                                                 forFont: font
-                                              baseString: @"A"];
-    printf("NAME nonnil=%d glyphName=%s\n",
-           g3 != nil, g3 == nil ? "(nil object)" : s([g3 glyphName]));
+    [l setMinimumLineSpacing: 5.0];
+    [l setMinimumInteritemSpacing: 6.0];
+    [l setItemSize: NSMakeSize(30, 40)];
+    [l setEstimatedItemSize: NSMakeSize(11, 12)];
+    [l setScrollDirection: NSCollectionViewScrollDirectionHorizontal];
+    [l setHeaderReferenceSize: NSMakeSize(100, 20)];
+    [l setFooterReferenceSize: NSMakeSize(100, 10)];
+    [l setSectionInset: NSEdgeInsetsMake(1, 2, 3, 4)];
+    [l setSectionHeadersPinToVisibleBounds: YES];
+    [l setSectionFootersPinToVisibleBounds: YES];
+    printf("SET lineSpacing=%g interitem=%g itemSize=%gx%g estItemSize=%gx%g scroll=%ld\n",
+           [l minimumLineSpacing], [l minimumInteritemSpacing],
+           [l itemSize].width, [l itemSize].height,
+           [l estimatedItemSize].width, [l estimatedItemSize].height,
+           (long)[l scrollDirection]);
+    printf("SET header=%gx%g footer=%gx%g inset=%g,%g,%g,%g pinH=%d pinF=%d\n",
+           [l headerReferenceSize].width, [l headerReferenceSize].height,
+           [l footerReferenceSize].width, [l footerReferenceSize].height,
+           [l sectionInset].top, [l sectionInset].left,
+           [l sectionInset].bottom, [l sectionInset].right,
+           [l sectionHeadersPinToVisibleBounds],
+           [l sectionFootersPinToVisibleBounds]);
   }
   return 0;
 }
