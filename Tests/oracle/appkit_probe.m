@@ -64,6 +64,20 @@ main(int argc, const char **argv)
            [c locale] == nil ? "nil" : [[[c locale] localeIdentifier] UTF8String],
            [c timeZone] == nil ? "nil" : [[[c timeZone] name] UTF8String]);
 
+    /* default colours: identify which named AppKit colours they are */
+    NSColor *tc = [c textColor];
+    NSColor *bc = [c backgroundColor];
+    printf("COLOR txt-desc=%s\n", tc == nil ? "nil" : [[tc description] UTF8String]);
+    printf("COLOR bg-desc=%s\n", bc == nil ? "nil" : [[bc description] UTF8String]);
+    printf("COLOR txt==textColor=%d ==controlText=%d ==labelColor=%d\n",
+           tc != nil && [tc isEqual: [NSColor textColor]],
+           tc != nil && [tc isEqual: [NSColor controlTextColor]],
+           tc != nil && [tc isEqual: [NSColor labelColor]]);
+    printf("COLOR bg==textBg=%d ==controlBg=%d ==windowBg=%d\n",
+           bc != nil && [bc isEqual: [NSColor textBackgroundColor]],
+           bc != nil && [bc isEqual: [NSColor controlBackgroundColor]],
+           bc != nil && [bc isEqual: [NSColor windowBackgroundColor]]);
+
     /* clamping of dateValue to [minDate, maxDate] (min=0, max=1e6) */
     NSDatePickerCell *cl = [[NSDatePickerCell alloc] init];
     [cl setMinDate: at(0.0)];
