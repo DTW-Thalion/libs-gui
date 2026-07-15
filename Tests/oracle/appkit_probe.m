@@ -1,8 +1,7 @@
-/* Apple oracle for the NSPathControl coverage test.  Probes the NSPathStyle
-   enum, the init defaults (pathStyle, URL, pathItems, allowedTypes,
-   doubleAction, placeholderString, editable) and the pathStyle / URL /
-   placeholderString setters.  Portable so the same file runs under GNUstep for
-   an A/B. */
+/* Apple oracle for the NSPathControlItem coverage test.  Probes init defaults
+   (URL, title, attributedTitle, image), whether the class responds to the
+   setters GNUstep adds, and setter round-trips where present.  Portable so the
+   same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -10,8 +9,11 @@
 #endif
 #include <stdio.h>
 
-@interface NSPathControl (OracleCompat)
-- (BOOL) isEditable;
+@interface NSPathControlItem (OracleCompat)
+- (void) setURL: (NSURL *)url;
+- (void) setTitle: (NSString *)title;
+- (void) setAttributedTitle: (NSAttributedString *)s;
+- (void) setImage: (NSImage *)image;
 @end
 
 static const char *
@@ -28,34 +30,42 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM style Standard=%d NavBar=%d PopUp=%d\n",
-           (int)NSPathStyleStandard, (int)NSPathStyleNavigationBar,
-           (int)NSPathStylePopUp);
+    NSPathControlItem *it = [[NSPathControlItem alloc] init];
 
-    NSPathControl *pc =
-        [[NSPathControl alloc] initWithFrame: NSMakeRect(0, 0, 200, 30)];
-    printf("INIT pathStyle=%ld url=%s doubleAction=%s placeholder=%s allowedTypes=%s\n",
-           (long)[pc pathStyle],
-           [pc URL] == nil ? "nil" : "set",
-           [pc doubleAction] == NULL ? "NULL" : "set",
-           s([pc placeholderString]),
-           [pc allowedTypes] == nil ? "nil" : "set");
-    printf("INIT pathItems=%s\n",
-           [pc pathItems] == nil ? "nil"
-             : [[NSString stringWithFormat: @"count-%lu",
-                          (unsigned long)[[pc pathItems] count]] UTF8String]);
-    if ([pc respondsToSelector: @selector(isEditable)])
-      printf("INIT editable=%d\n", [pc isEditable]);
-    else
-      printf("INIT editable=unavailable\n");
+    printf("INIT url=%s title=%s attrTitle=%s image=%s\n",
+           [it URL] == nil ? "nil" : "set",
+           s([it title]),
+           [it attributedTitle] == nil ? "nil" : "set",
+           [it image] == nil ? "nil" : "set");
 
-    [pc setPathStyle: NSPathStylePopUp];
-    NSURL *url = [NSURL fileURLWithPath: @"/tmp/foo"];
-    [pc setURL: url];
-    [pc setPlaceholderString: @"pick a path"];
-    printf("SET pathStyle=%ld urlEqual=%d placeholder=%s\n",
-           (long)[pc pathStyle], [[pc URL] isEqual: url],
-           s([pc placeholderString]));
+    printf("RESP setURL=%d setTitle=%d setAttributedTitle=%d setImage=%d\n",
+           [it respondsToSelector: @selector(setURL:)],
+           [it respondsToSelector: @selector(setTitle:)],
+           [it respondsToSelector: @selector(setAttributedTitle:)],
+           [it respondsToSelector: @selector(setImage:)]);
+
+    if ([it respondsToSelector: @selector(setURL:)])
+      {
+        NSURL *u = [NSURL fileURLWithPath: @"/tmp/foo"];
+        [it setURL: u];
+        printf("SET url urlEqual=%d\n", [[it URL] isEqual: u]);
+      }
+
+    if ([it respondsToSelector: @selector(setTitle:)])
+      {
+        [it setTitle: @"hello"];
+        printf("SET title title=%s attrTitleString=%s\n",
+               s([it title]), s([[it attributedTitle] string]));
+      }
+
+    if ([it respondsToSelector: @selector(setAttributedTitle:)])
+      {
+        NSAttributedString *a =
+            [[NSAttributedString alloc] initWithString: @"world"];
+        [it setAttributedTitle: a];
+        printf("SET attrTitle title=%s attrTitleString=%s\n",
+               s([it title]), s([[it attributedTitle] string]));
+      }
   }
   return 0;
 }
