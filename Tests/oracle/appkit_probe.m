@@ -1,8 +1,8 @@
-/* Apple oracle for the NSCollectionViewFlowLayout coverage test.  Probes the
-   scroll-direction enum, the init defaults (minimumLineSpacing,
-   minimumInteritemSpacing, itemSize, estimatedItemSize, scrollDirection,
-   header/footer reference sizes, sectionInset, pin flags) and the plain setter
-   round-trips.  Portable so the same file runs under GNUstep for an A/B. */
+/* Apple oracle for the NSLayoutConstraint coverage test.  Probes the relation
+   / attribute / priority enums, the constraintWithItem:... factory and its
+   readonly accessors, the default priority and active state, the constant /
+   priority / active / identifier setters and shouldBeArchived.  Portable so
+   the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -18,47 +18,57 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM scroll Vertical=%d Horizontal=%d\n",
-           (int)NSCollectionViewScrollDirectionVertical,
-           (int)NSCollectionViewScrollDirectionHorizontal);
+    NSView *v1 = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
+    NSView *v2 = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 40, 40)];
+    [v1 addSubview: v2];
 
-    NSCollectionViewFlowLayout *l = [[NSCollectionViewFlowLayout alloc] init];
-    printf("INIT lineSpacing=%g interitem=%g itemSize=%gx%g estItemSize=%gx%g scroll=%ld\n",
-           [l minimumLineSpacing], [l minimumInteritemSpacing],
-           [l itemSize].width, [l itemSize].height,
-           [l estimatedItemSize].width, [l estimatedItemSize].height,
-           (long)[l scrollDirection]);
-    printf("INIT header=%gx%g footer=%gx%g inset=%g,%g,%g,%g\n",
-           [l headerReferenceSize].width, [l headerReferenceSize].height,
-           [l footerReferenceSize].width, [l footerReferenceSize].height,
-           [l sectionInset].top, [l sectionInset].left,
-           [l sectionInset].bottom, [l sectionInset].right);
-    printf("INIT pinHeaders=%d pinFooters=%d\n",
-           [l sectionHeadersPinToVisibleBounds],
-           [l sectionFootersPinToVisibleBounds]);
+    printf("ENUM rel LE=%d Eq=%d GE=%d\n",
+           (int)NSLayoutRelationLessThanOrEqual,
+           (int)NSLayoutRelationEqual, (int)NSLayoutRelationGreaterThanOrEqual);
+    printf("ENUM attr NotAn=%d Left=%d Width=%d Height=%d CenterX=%d\n",
+           (int)NSLayoutAttributeNotAnAttribute, (int)NSLayoutAttributeLeft,
+           (int)NSLayoutAttributeWidth, (int)NSLayoutAttributeHeight,
+           (int)NSLayoutAttributeCenterX);
+    printf("ENUM prio Required=%g High=%g Low=%g\n",
+           (double)NSLayoutPriorityRequired, (double)NSLayoutPriorityDefaultHigh,
+           (double)NSLayoutPriorityDefaultLow);
 
-    [l setMinimumLineSpacing: 5.0];
-    [l setMinimumInteritemSpacing: 6.0];
-    [l setItemSize: NSMakeSize(30, 40)];
-    [l setEstimatedItemSize: NSMakeSize(11, 12)];
-    [l setScrollDirection: NSCollectionViewScrollDirectionHorizontal];
-    [l setHeaderReferenceSize: NSMakeSize(100, 20)];
-    [l setFooterReferenceSize: NSMakeSize(100, 10)];
-    [l setSectionInset: NSEdgeInsetsMake(1, 2, 3, 4)];
-    [l setSectionHeadersPinToVisibleBounds: YES];
-    [l setSectionFootersPinToVisibleBounds: YES];
-    printf("SET lineSpacing=%g interitem=%g itemSize=%gx%g estItemSize=%gx%g scroll=%ld\n",
-           [l minimumLineSpacing], [l minimumInteritemSpacing],
-           [l itemSize].width, [l itemSize].height,
-           [l estimatedItemSize].width, [l estimatedItemSize].height,
-           (long)[l scrollDirection]);
-    printf("SET header=%gx%g footer=%gx%g inset=%g,%g,%g,%g pinH=%d pinF=%d\n",
-           [l headerReferenceSize].width, [l headerReferenceSize].height,
-           [l footerReferenceSize].width, [l footerReferenceSize].height,
-           [l sectionInset].top, [l sectionInset].left,
-           [l sectionInset].bottom, [l sectionInset].right,
-           [l sectionHeadersPinToVisibleBounds],
-           [l sectionFootersPinToVisibleBounds]);
+    NSLayoutConstraint *c =
+        [NSLayoutConstraint constraintWithItem: v1
+                                     attribute: NSLayoutAttributeWidth
+                                     relatedBy: NSLayoutRelationEqual
+                                        toItem: v2
+                                     attribute: NSLayoutAttributeWidth
+                                    multiplier: 2.0
+                                      constant: 5.0];
+    printf("FACT first=%d firstAttr=%ld rel=%ld second=%d secondAttr=%ld mult=%g const=%g prio=%g active=%d\n",
+           [c firstItem] == v1, (long)[c firstAttribute], (long)[c relation],
+           [c secondItem] == v2, (long)[c secondAttribute],
+           [c multiplier], [c constant], (double)[c priority], [c isActive]);
+
+    if ([c respondsToSelector: @selector(identifier)])
+      printf("ID default=%s\n",
+             [c identifier] == nil ? "nil" : [[c identifier] UTF8String]);
+    else
+      printf("ID default=unavailable\n");
+    if ([c respondsToSelector: @selector(shouldBeArchived)])
+      printf("ARCH default=%d\n", [c shouldBeArchived]);
+    else
+      printf("ARCH default=unavailable\n");
+
+    [c setConstant: 42.0];
+    [c setPriority: NSLayoutPriorityDefaultHigh];
+    if ([c respondsToSelector: @selector(setIdentifier:)])
+      [c setIdentifier: @"myC"];
+    printf("SET const=%g prio=%g id=%s\n",
+           [c constant], (double)[c priority],
+           [c respondsToSelector: @selector(identifier)]
+             && [c identifier] != nil ? [[c identifier] UTF8String] : "nil");
+
+    [c setActive: NO];
+    printf("ACTIVE afterNO=%d\n", [c isActive]);
+    [c setActive: YES];
+    printf("ACTIVE afterYES=%d\n", [c isActive]);
   }
   return 0;
 }
