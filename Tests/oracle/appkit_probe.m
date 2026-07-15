@@ -21,6 +21,10 @@ main(int argc, const char **argv)
     NSLevelIndicatorStyle styles[4];
     int i;
 
+    /* NSCell touches the backend (font enumerator) under GNUstep, so the
+       shared application has to exist first; harmless on macOS. */
+    [NSApplication sharedApplication];
+
     printf("ENUM Relevancy=%d Continuous=%d Discrete=%d Rating=%d\n",
            (int)NSRelevancyLevelIndicatorStyle,
            (int)NSContinuousCapacityLevelIndicatorStyle,
