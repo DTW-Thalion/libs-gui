@@ -49,6 +49,7 @@
   if (self)
     {
       ASSIGN(_ident, identifier);
+      ASSIGN(_label, @"");
       _state = NSBackgroundTab;
       _view = [NSView new];
       // Use the window background colour as default, not the control background colour.
