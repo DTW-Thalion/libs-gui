@@ -1,19 +1,14 @@
-/* Apple oracle for the NSActionCell coverage test.  Probes init defaults
-   (tag, target, action, controlView, enabled, bordered, bezeled), the
-   tag/target/action setters, the bezel/border mutual exclusion, and
-   setEnabled:.  Portable so the same file runs under GNUstep for an A/B. */
+/* Apple oracle for NSLayoutAnchor.  Probes the class hierarchy, whether NSView
+   vends anchors (leadingAnchor/widthAnchor/...), the constraints those anchors
+   build (attribute, constant, relation, multiplier), and the behaviour of the
+   base-class constraintEqualToAnchor:constant: (does it honour the constant?).
+   Portable so the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
 #include <stdio.h>
-
-static const char *
-sel(SEL v)
-{
-  return v == NULL ? "NULL" : (const char *)[NSStringFromSelector(v) UTF8String];
-}
 
 int
 main(int argc, const char **argv)
@@ -23,34 +18,51 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    NSActionCell *c = [[NSActionCell alloc] init];
+    printf("HIER dimIsAnchor=%d xIsAnchor=%d yIsAnchor=%d copying=%d coding=%d\n",
+           [NSLayoutDimension isSubclassOfClass: [NSLayoutAnchor class]],
+           [NSLayoutXAxisAnchor isSubclassOfClass: [NSLayoutAnchor class]],
+           [NSLayoutYAxisAnchor isSubclassOfClass: [NSLayoutAnchor class]],
+           [NSLayoutAnchor conformsToProtocol: @protocol(NSCopying)],
+           [NSLayoutAnchor conformsToProtocol: @protocol(NSCoding)]);
 
-    printf("INIT tag=%ld target=%s action=%s cv=%s enabled=%d bordered=%d bezeled=%d\n",
-           (long)[c tag],
-           [c target] == nil ? "nil" : "set",
-           sel([c action]),
-           [c controlView] == nil ? "nil" : "set",
-           [c isEnabled], [c isBordered], [c isBezeled]);
+    NSView *v = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
+    NSView *v2 = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
 
-    /* tag / target / action setters. */
-    [c setTag: 42];
-    id t = [NSObject new];
-    [c setTarget: t];
-    [c setAction: @selector(fire:)];
-    printf("SET tag=%ld targetSame=%d action=%s\n",
-           (long)[c tag], [c target] == t, sel([c action]));
+    printf("VIEW leadingAnchor=%d widthAnchor=%d topAnchor=%d\n",
+           [v respondsToSelector: @selector(leadingAnchor)],
+           [v respondsToSelector: @selector(widthAnchor)],
+           [v respondsToSelector: @selector(topAnchor)]);
 
-    /* Bezel/border mutual exclusion. */
-    [c setBezeled: YES];
-    printf("BEZEL setBezeledYES bezeled=%d bordered=%d\n",
-           [c isBezeled], [c isBordered]);
-    [c setBordered: YES];
-    printf("BORDER setBorderedYES bezeled=%d bordered=%d\n",
-           [c isBezeled], [c isBordered]);
+    if ([v respondsToSelector: @selector(widthAnchor)])
+      {
+        NSLayoutConstraint *w = [[v widthAnchor] constraintEqualToConstant: 50];
+        printf("WIDTH firstAttr=%ld secondItem=%s secondAttr=%ld const=%g rel=%ld mult=%g\n",
+               (long)[w firstAttribute],
+               [w secondItem] == nil ? "nil" : "set",
+               (long)[w secondAttribute], [w constant], (long)[w relation],
+               [w multiplier]);
 
-    /* Enabled. */
-    [c setEnabled: NO];
-    printf("ENABLED setEnabledNO enabled=%d\n", [c isEnabled]);
+        NSLayoutConstraint *lead =
+            [[v leadingAnchor] constraintEqualToAnchor: [v2 leadingAnchor]
+                                              constant: 8];
+        printf("LEAD firstAttr=%ld secondAttr=%ld const=%g rel=%ld mult=%g\n",
+               (long)[lead firstAttribute], (long)[lead secondAttribute],
+               [lead constant], (long)[lead relation], [lead multiplier]);
+      }
+
+    /* Directly-instantiated base anchor: does the Equal+constant variant honour
+       the constant?  (Apple discourages direct instantiation; guard it.) */
+    NS_DURING
+      {
+        NSLayoutAnchor *a = [[NSLayoutAnchor alloc] init];
+        NSLayoutConstraint *e = [a constraintEqualToAnchor: a constant: 10];
+        NSLayoutConstraint *g =
+            [a constraintGreaterThanOrEqualToAnchor: a constant: 10];
+        printf("DIRECT equalConst=%g gteConst=%g\n", [e constant], [g constant]);
+      }
+    NS_HANDLER
+      printf("DIRECT raised=%s\n", [[localException name] UTF8String]);
+    NS_ENDHANDLER
   }
   return 0;
 }
