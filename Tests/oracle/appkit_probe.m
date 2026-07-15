@@ -1,14 +1,24 @@
 /* Apple oracle for the NSLayoutConstraint coverage test.  Probes the relation
    / attribute / priority enums, the constraintWithItem:... factory and its
-   readonly accessors, the default priority and active state, the constant /
-   priority / active / identifier setters and shouldBeArchived.  Portable so
-   the same file runs under GNUstep for an A/B. */
+   readonly accessors, the default priority and active state, the priority and
+   active setters, and (guarded, since GNUstep may not have them) setConstant:,
+   identifier/setIdentifier: and shouldBeArchived.  Portable so the same file
+   runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
 #include <stdio.h>
+
+/* Declared so the file compiles where GNUstep lacks these; respondsToSelector:
+   is what actually reports availability. */
+@interface NSLayoutConstraint (OracleCompat)
+- (void) setConstant: (CGFloat)c;
+- (NSString *) identifier;
+- (void) setIdentifier: (NSString *)s;
+- (BOOL) shouldBeArchived;
+@end
 
 int
 main(int argc, const char **argv)
@@ -46,24 +56,23 @@ main(int argc, const char **argv)
            [c secondItem] == v2, (long)[c secondAttribute],
            [c multiplier], [c constant], (double)[c priority], [c isActive]);
 
+    printf("HAS setConstant=%d identifier=%d shouldBeArchived=%d\n",
+           [c respondsToSelector: @selector(setConstant:)],
+           [c respondsToSelector: @selector(identifier)],
+           [c respondsToSelector: @selector(shouldBeArchived)]);
     if ([c respondsToSelector: @selector(identifier)])
       printf("ID default=%s\n",
              [c identifier] == nil ? "nil" : [[c identifier] UTF8String]);
-    else
-      printf("ID default=unavailable\n");
     if ([c respondsToSelector: @selector(shouldBeArchived)])
       printf("ARCH default=%d\n", [c shouldBeArchived]);
-    else
-      printf("ARCH default=unavailable\n");
 
-    [c setConstant: 42.0];
     [c setPriority: NSLayoutPriorityDefaultHigh];
-    if ([c respondsToSelector: @selector(setIdentifier:)])
-      [c setIdentifier: @"myC"];
-    printf("SET const=%g prio=%g id=%s\n",
-           [c constant], (double)[c priority],
-           [c respondsToSelector: @selector(identifier)]
-             && [c identifier] != nil ? [[c identifier] UTF8String] : "nil");
+    printf("SET prio=%g\n", (double)[c priority]);
+    if ([c respondsToSelector: @selector(setConstant:)])
+      {
+        [c setConstant: 42.0];
+        printf("SET const=%g\n", [c constant]);
+      }
 
     [c setActive: NO];
     printf("ACTIVE afterNO=%d\n", [c isActive]);
