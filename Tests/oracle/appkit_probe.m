@@ -1,31 +1,15 @@
-/* Apple oracle for the NSDatePickerCell coverage test.  Probes the enum
-   values, the init defaults (style/mode/elements/timeInterval/min/max/
-   dateValue/colors/calendar/locale/timeZone), whether dateValue is clamped to
-   [minDate,maxDate] on set and on later min/max changes, and the plain setter
-   round-trips.  Portable so the same file runs under GNUstep for an A/B.
-   Dates are printed as timeIntervalSinceReferenceDate so the two sides compare
-   without locale/formatting noise. */
+/* Apple oracle for the NSToolbarItem coverage test.  Probes the visibility
+   priority enum, the init defaults (identifier, label, paletteLabel, toolTip,
+   tag, visibilityPriority, autovalidates, enabled, min/max size, image/view/
+   menuFormRepresentation/target/action, allowsDuplicatesInToolbar) and the
+   plain setter round-trips.  Portable so the same file runs under GNUstep for
+   an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
 #include <stdio.h>
-
-static const char *
-iv(NSDate *d)
-{
-  static char buf[64];
-  if (d == nil) return "nil";
-  snprintf(buf, sizeof(buf), "%.1f", [d timeIntervalSinceReferenceDate]);
-  return buf;
-}
-
-static NSDate *
-at(double t)
-{
-  return [NSDate dateWithTimeIntervalSinceReferenceDate: t];
-}
 
 int
 main(int argc, const char **argv)
@@ -35,81 +19,54 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM style TFS=%d CC=%d TF=%d\n",
-           (int)NSTextFieldAndStepperDatePickerStyle,
-           (int)NSClockAndCalendarDatePickerStyle,
-           (int)NSTextFieldDatePickerStyle);
-    printf("ENUM mode Single=%d Range=%d\n",
-           (int)NSSingleDateMode, (int)NSRangeDateMode);
-    printf("ENUM elem HM=0x%x HMS=0x%x TZ=0x%x YM=0x%x YMD=0x%x Era=0x%x\n",
-           (unsigned)NSHourMinuteDatePickerElementFlag,
-           (unsigned)NSHourMinuteSecondDatePickerElementFlag,
-           (unsigned)NSTimeZoneDatePickerElementFlag,
-           (unsigned)NSYearMonthDatePickerElementFlag,
-           (unsigned)NSYearMonthDayDatePickerElementFlag,
-           (unsigned)NSEraDatePickerElementFlag);
+    printf("ENUM vis Standard=%d Low=%d High=%d User=%d\n",
+           (int)NSToolbarItemVisibilityPriorityStandard,
+           (int)NSToolbarItemVisibilityPriorityLow,
+           (int)NSToolbarItemVisibilityPriorityHigh,
+           (int)NSToolbarItemVisibilityPriorityUser);
 
-    /* init defaults */
-    NSDatePickerCell *c = [[NSDatePickerCell alloc] init];
-    printf("INIT style=%lu mode=%lu elements=0x%lx timeInterval=%g "
-           "minDate=%s maxDate=%s draws=%d bg=%s txt=%s dateValue=%s\n",
-           (unsigned long)[c datePickerStyle], (unsigned long)[c datePickerMode],
-           (unsigned long)[c datePickerElements], [c timeInterval],
-           iv([c minDate]), iv([c maxDate]), [c drawsBackground],
-           [c backgroundColor] == nil ? "nil" : "set",
-           [c textColor] == nil ? "nil" : "set",
-           iv([c dateValue]));
-    printf("INIT calendar=%s locale=%s tz=%s\n",
-           [c calendar] == nil ? "nil" : [[[c calendar] calendarIdentifier] UTF8String],
-           [c locale] == nil ? "nil" : [[[c locale] localeIdentifier] UTF8String],
-           [c timeZone] == nil ? "nil" : [[[c timeZone] name] UTF8String]);
+    NSToolbarItem *it =
+        [[NSToolbarItem alloc] initWithItemIdentifier: @"probeItem"];
+    printf("INIT ident=%s label=%s palette=%s tooltip=%s\n",
+           [it itemIdentifier] == nil ? "nil" : [[it itemIdentifier] UTF8String],
+           [it label] == nil ? "nil" : [[it label] UTF8String],
+           [it paletteLabel] == nil ? "nil" : [[it paletteLabel] UTF8String],
+           [it toolTip] == nil ? "nil" : [[it toolTip] UTF8String]);
+    printf("INIT tag=%ld vis=%ld auto=%d enabled=%d\n",
+           (long)[it tag], (long)[it visibilityPriority],
+           [it autovalidates], [it isEnabled]);
+    printf("INIT image=%s view=%s menuForm=%s target=%s action=%s\n",
+           [it image] == nil ? "nil" : "set",
+           [it view] == nil ? "nil" : "set",
+           [it menuFormRepresentation] == nil ? "nil" : "set",
+           [it target] == nil ? "nil" : "set",
+           [it action] == NULL ? "NULL" : "set");
+    printf("INIT minSize=%gx%g maxSize=%gx%g\n",
+           [it minSize].width, [it minSize].height,
+           [it maxSize].width, [it maxSize].height);
+    if ([it respondsToSelector: @selector(allowsDuplicatesInToolbar)])
+      printf("INIT allowsDup=%d\n", [it allowsDuplicatesInToolbar]);
+    else
+      printf("INIT allowsDup=unavailable\n");
 
-    /* default colours: identify which named AppKit colours they are */
-    NSColor *tc = [c textColor];
-    NSColor *bc = [c backgroundColor];
-    printf("COLOR txt-desc=%s\n", tc == nil ? "nil" : [[tc description] UTF8String]);
-    printf("COLOR bg-desc=%s\n", bc == nil ? "nil" : [[bc description] UTF8String]);
-    printf("COLOR txt==textColor=%d ==controlText=%d ==labelColor=%d\n",
-           tc != nil && [tc isEqual: [NSColor textColor]],
-           tc != nil && [tc isEqual: [NSColor controlTextColor]],
-           tc != nil && [tc isEqual: [NSColor labelColor]]);
-    printf("COLOR bg==textBg=%d ==controlBg=%d ==windowBg=%d\n",
-           bc != nil && [bc isEqual: [NSColor textBackgroundColor]],
-           bc != nil && [bc isEqual: [NSColor controlBackgroundColor]],
-           bc != nil && [bc isEqual: [NSColor windowBackgroundColor]]);
-
-    /* clamping of dateValue to [minDate, maxDate] (min=0, max=1e6) */
-    NSDatePickerCell *cl = [[NSDatePickerCell alloc] init];
-    [cl setMinDate: at(0.0)];
-    [cl setMaxDate: at(1000000.0)];
-    [cl setDateValue: at(-1000000.0)];
-    printf("CLAMP below-min -> %s\n", iv([cl dateValue]));
-    [cl setDateValue: at(2000000.0)];
-    printf("CLAMP above-max -> %s\n", iv([cl dateValue]));
-    [cl setDateValue: at(500000.0)];
-    printf("CLAMP in-range -> %s\n", iv([cl dateValue]));
-
-    /* re-clamp when min/max move past the current value */
-    NSDatePickerCell *rc = [[NSDatePickerCell alloc] init];
-    [rc setDateValue: at(500000.0)];
-    [rc setMinDate: at(600000.0)];
-    printf("RECLAMP minAboveValue -> %s\n", iv([rc dateValue]));
-    NSDatePickerCell *rc2 = [[NSDatePickerCell alloc] init];
-    [rc2 setDateValue: at(500000.0)];
-    [rc2 setMaxDate: at(400000.0)];
-    printf("RECLAMP maxBelowValue -> %s\n", iv([rc2 dateValue]));
-
-    /* plain setter round-trips */
-    NSDatePickerCell *st = [[NSDatePickerCell alloc] init];
-    [st setDatePickerStyle: NSClockAndCalendarDatePickerStyle];
-    [st setDatePickerMode: NSRangeDateMode];
-    [st setDatePickerElements: NSYearMonthDayDatePickerElementFlag];
-    [st setTimeInterval: 3600.0];
-    [st setDrawsBackground: YES];
-    printf("SET style=%lu mode=%lu elements=0x%lx timeInterval=%g draws=%d\n",
-           (unsigned long)[st datePickerStyle], (unsigned long)[st datePickerMode],
-           (unsigned long)[st datePickerElements], [st timeInterval],
-           [st drawsBackground]);
+    NSToolbarItem *st =
+        [[NSToolbarItem alloc] initWithItemIdentifier: @"setItem"];
+    [st setLabel: @"L"];
+    [st setPaletteLabel: @"P"];
+    [st setToolTip: @"T"];
+    [st setTag: 42];
+    [st setVisibilityPriority: NSToolbarItemVisibilityPriorityHigh];
+    [st setAutovalidates: NO];
+    [st setEnabled: NO];
+    [st setMinSize: NSMakeSize(10, 20)];
+    [st setMaxSize: NSMakeSize(30, 40)];
+    printf("SET label=%s palette=%s tooltip=%s tag=%ld vis=%ld auto=%d enabled=%d\n",
+           [[st label] UTF8String], [[st paletteLabel] UTF8String],
+           [[st toolTip] UTF8String], (long)[st tag],
+           (long)[st visibilityPriority], [st autovalidates], [st isEnabled]);
+    printf("SET minSize=%gx%g maxSize=%gx%g\n",
+           [st minSize].width, [st minSize].height,
+           [st maxSize].width, [st maxSize].height);
   }
   return 0;
 }
