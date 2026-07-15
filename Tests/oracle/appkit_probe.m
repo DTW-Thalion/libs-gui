@@ -1,7 +1,8 @@
-/* Apple oracle for the NSPathComponentCell coverage test.  Probes the init
-   defaults (image, URL, title, stringValue), whether setImage:/setURL: keep
-   the same object, whether setURL: changes the title, and the setTitle:
-   round-trip.  Portable so the same file runs under GNUstep for an A/B. */
+/* Apple oracle for the NSGlyphInfo coverage test.  Probes the character
+   collection enum and the three factory methods (character identifier, CG
+   glyph, glyph name) with their readonly accessors (characterIdentifier,
+   characterCollection, baseString, glyphID, glyphName).  Portable so the same
+   file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -23,23 +24,35 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    NSPathComponentCell *c = [[NSPathComponentCell alloc] init];
-    printf("INIT image=%s url=%s title=[%s] stringValue=[%s]\n",
-           [c image] == nil ? "nil" : "set",
-           [c URL] == nil ? "nil" : "set",
-           s([c title]), s([c stringValue]));
+    printf("ENUM coll Identity=%d CNS1=%d GB1=%d Japan1=%d Japan2=%d Korea1=%d\n",
+           (int)NSIdentityMappingCharacterCollection,
+           (int)NSAdobeCNS1CharacterCollection,
+           (int)NSAdobeGB1CharacterCollection,
+           (int)NSAdobeJapan1CharacterCollection,
+           (int)NSAdobeJapan2CharacterCollection,
+           (int)NSAdobeKorea1CharacterCollection);
 
-    NSImage *img = [[NSImage alloc] initWithSize: NSMakeSize(16, 16)];
-    [c setImage: img];
-    printf("IMG same=%d nonnil=%d\n", [c image] == img, [c image] != nil);
+    NSGlyphInfo *g1 = [NSGlyphInfo
+        glyphInfoWithCharacterIdentifier: 42
+                              collection: NSAdobeJapan1CharacterCollection
+                              baseString: @"X"];
+    printf("CID nonnil=%d cid=%lu coll=%lu base=%s glyphName=%s\n",
+           g1 != nil, (unsigned long)[g1 characterIdentifier],
+           (unsigned long)[g1 characterCollection],
+           s([g1 baseString]), s([g1 glyphName]));
 
-    NSURL *url = [NSURL fileURLWithPath: @"/tmp/foo"];
-    [c setURL: url];
-    printf("URL same=%d equal=%d title=[%s] stringValue=[%s]\n",
-           [c URL] == url, [[c URL] isEqual: url], s([c title]), s([c stringValue]));
+    NSFont *font = [NSFont systemFontOfSize: 12];
+    NSGlyphInfo *g2 = [NSGlyphInfo glyphInfoWithCGGlyph: 36
+                                               forFont: font
+                                            baseString: @"A"];
+    printf("CGG nonnil=%d glyphID=%d base=%s\n",
+           g2 != nil, (int)[g2 glyphID], s([g2 baseString]));
 
-    [c setTitle: @"MyTitle"];
-    printf("TITLE title=[%s]\n", s([c title]));
+    NSGlyphInfo *g3 = [NSGlyphInfo glyphInfoWithGlyphName: @"A"
+                                                 forFont: font
+                                              baseString: @"A"];
+    printf("NAME nonnil=%d glyphName=%s\n",
+           g3 != nil, g3 == nil ? "(nil object)" : s([g3 glyphName]));
   }
   return 0;
 }
