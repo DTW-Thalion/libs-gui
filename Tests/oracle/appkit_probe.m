@@ -12,6 +12,25 @@
 #endif
 #include <stdio.h>
 
+/* Apple's style getter is -levelIndicatorStyle; GNUstep implements -style
+   instead (the setter -setLevelIndicatorStyle: matches on both).  Declare the
+   Apple name so it compiles everywhere and pick whichever the object answers. */
+@interface NSLevelIndicatorCell (OracleCompat)
+- (NSLevelIndicatorStyle) levelIndicatorStyle;
+@end
+
+static long
+styleOf(NSLevelIndicatorCell *c)
+{
+  if ([c respondsToSelector: @selector(levelIndicatorStyle)])
+    return (long)[c levelIndicatorStyle];
+#ifndef __APPLE__
+  if ([c respondsToSelector: @selector(style)])
+    return (long)[c style];
+#endif
+  return -999;
+}
+
 int
 main(int argc, const char **argv)
 {
@@ -34,7 +53,7 @@ main(int argc, const char **argv)
     /* init defaults */
     NSLevelIndicatorCell *c = [[NSLevelIndicatorCell alloc] init];
     printf("INIT style=%ld min=%g max=%g warn=%g crit=%g ticks=%ld major=%ld value=%g\n",
-           (long)[c style], [c minValue], [c maxValue], [c warningValue],
+           styleOf(c), [c minValue], [c maxValue], [c warningValue],
            [c criticalValue], (long)[c numberOfTickMarks],
            (long)[c numberOfMajorTickMarks], [c doubleValue]);
 
