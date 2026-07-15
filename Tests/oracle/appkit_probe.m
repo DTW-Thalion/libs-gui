@@ -1,7 +1,8 @@
-/* Apple oracle for the NSPathControlItem coverage test.  Probes init defaults
-   (URL, title, attributedTitle, image), whether the class responds to the
-   setters GNUstep adds, and setter round-trips where present.  Portable so the
-   same file runs under GNUstep for an A/B. */
+/* Apple oracle for the NSPathCell coverage test.  Probes init defaults
+   (pathStyle, backgroundColor, placeholder, allowedTypes, URL, doubleAction,
+   pathComponentCells), the +pathComponentCellClass class method, and the
+   pathStyle / backgroundColor / placeholderString / allowedTypes / doubleAction
+   setters.  Portable so the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -9,17 +10,16 @@
 #endif
 #include <stdio.h>
 
-@interface NSPathControlItem (OracleCompat)
-- (void) setURL: (NSURL *)url;
-- (void) setTitle: (NSString *)title;
-- (void) setAttributedTitle: (NSAttributedString *)s;
-- (void) setImage: (NSImage *)image;
-@end
-
 static const char *
 s(NSString *v)
 {
   return v == nil ? "nil" : (const char *)[v UTF8String];
+}
+
+static const char *
+sel(SEL v)
+{
+  return v == NULL ? "NULL" : (const char *)[NSStringFromSelector(v) UTF8String];
 }
 
 int
@@ -30,42 +30,48 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    NSPathControlItem *it = [[NSPathControlItem alloc] init];
+    printf("ENUM Standard=%d NavBar=%d PopUp=%d\n",
+           (int)NSPathStyleStandard, (int)NSPathStyleNavigationBar,
+           (int)NSPathStylePopUp);
 
-    printf("INIT url=%s title=%s attrTitle=%s image=%s\n",
-           [it URL] == nil ? "nil" : "set",
-           s([it title]),
-           [it attributedTitle] == nil ? "nil" : "set",
-           [it image] == nil ? "nil" : "set");
+    printf("CLASS pathComponentCellClass=%s\n",
+           [NSStringFromClass([NSPathCell pathComponentCellClass]) UTF8String]);
 
-    printf("RESP setURL=%d setTitle=%d setAttributedTitle=%d setImage=%d\n",
-           [it respondsToSelector: @selector(setURL:)],
-           [it respondsToSelector: @selector(setTitle:)],
-           [it respondsToSelector: @selector(setAttributedTitle:)],
-           [it respondsToSelector: @selector(setImage:)]);
+    NSPathCell *pc = [[NSPathCell alloc] init];
 
-    if ([it respondsToSelector: @selector(setURL:)])
-      {
-        NSURL *u = [NSURL fileURLWithPath: @"/tmp/foo"];
-        [it setURL: u];
-        printf("SET url urlEqual=%d\n", [[it URL] isEqual: u]);
-      }
+    printf("INIT pathStyle=%ld bg=%s placeholder=%s allowedTypes=%s url=%s "
+           "doubleAction=%s\n",
+           (long)[pc pathStyle],
+           [pc backgroundColor] == nil ? "nil" : "set",
+           s([pc placeholderString]),
+           [pc allowedTypes] == nil ? "nil" : "set",
+           [pc URL] == nil ? "nil" : "set",
+           sel([pc doubleAction]));
+    printf("INIT pcc=%s\n",
+           [pc pathComponentCells] == nil ? "nil"
+             : [[NSString stringWithFormat: @"count-%lu",
+                          (unsigned long)[[pc pathComponentCells] count]] UTF8String]);
 
-    if ([it respondsToSelector: @selector(setTitle:)])
-      {
-        [it setTitle: @"hello"];
-        printf("SET title title=%s attrTitleString=%s\n",
-               s([it title]), s([[it attributedTitle] string]));
-      }
+    /* Setters. */
+    [pc setPathStyle: NSPathStylePopUp];
 
-    if ([it respondsToSelector: @selector(setAttributedTitle:)])
-      {
-        NSAttributedString *a =
-            [[NSAttributedString alloc] initWithString: @"world"];
-        [it setAttributedTitle: a];
-        printf("SET attrTitle title=%s attrTitleString=%s\n",
-               s([it title]), s([[it attributedTitle] string]));
-      }
+    NSColor *col = [NSColor redColor];
+    [pc setBackgroundColor: col];
+
+    [pc setPlaceholderString: @"choose"];
+
+    NSArray *types = [NSArray arrayWithObject: @"txt"];
+    [pc setAllowedTypes: types];
+
+    [pc setDoubleAction: @selector(doubleClick:)];
+
+    printf("SET pathStyle=%ld bgEqual=%d placeholder=%s allowedTypesEqual=%d "
+           "doubleAction=%s\n",
+           (long)[pc pathStyle],
+           [[pc backgroundColor] isEqual: col],
+           s([pc placeholderString]),
+           [[pc allowedTypes] isEqual: types],
+           sel([pc doubleAction]));
   }
   return 0;
 }
