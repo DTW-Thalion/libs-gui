@@ -126,6 +126,33 @@ main(int argc, const char **argv)
         printf("TICK[-1] raised %s\n", [[e name] UTF8String]);
       }
 
+    /* tick edge cases: n==1 (divisor n-1 would be 0) and n==2 */
+    NSLevelIndicatorCell *t1 = [[NSLevelIndicatorCell alloc] init];
+    [t1 setMinValue: 0.0];
+    [t1 setMaxValue: 10.0];
+    [t1 setNumberOfTickMarks: 1];
+    @try
+      {
+        printf("TICK1 n=1 [0]=%g\n", [t1 tickMarkValueAtIndex: 0]);
+      }
+    @catch (NSException *e)
+      {
+        printf("TICK1 n=1 raised %s\n", [[e name] UTF8String]);
+      }
+    NSLevelIndicatorCell *t2 = [[NSLevelIndicatorCell alloc] init];
+    [t2 setMinValue: 0.0];
+    [t2 setMaxValue: 10.0];
+    [t2 setNumberOfTickMarks: 2];
+    @try
+      {
+        printf("TICK2 n=2 [0]=%g [1]=%g\n",
+               [t2 tickMarkValueAtIndex: 0], [t2 tickMarkValueAtIndex: 1]);
+      }
+    @catch (NSException *e)
+      {
+        printf("TICK2 n=2 raised %s\n", [[e name] UTF8String]);
+      }
+
     /* plain setter round-trips */
     NSLevelIndicatorCell *st = [[NSLevelIndicatorCell alloc] init];
     [st setWarningValue: 7.5];
