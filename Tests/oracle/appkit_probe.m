@@ -1,8 +1,8 @@
-/* Apple oracle for the NSTabViewItem coverage test.  Probes the NSTabState
-   enum, the init defaults (identifier, label, view, initialFirstResponder,
-   tabState, toolTip, viewController, and the deprecated color) and the plain
-   setter round-trips.  Portable so the same file runs under GNUstep for an
-   A/B. */
+/* Apple oracle for the NSRulerMarker coverage test.  Probes the init defaults
+   (markerLocation, imageOrigin, image, ruler, movable, removable,
+   representedObject), the thicknessRequiredInRuler computation, the plain
+   setter round-trips and the nil-argument exceptions.  Portable so the same
+   file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -18,31 +18,57 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM tabState Selected=%d Background=%d Pressed=%d\n",
-           (int)NSSelectedTab, (int)NSBackgroundTab, (int)NSPressedTab);
+    NSScrollView *sv =
+        [[NSScrollView alloc] initWithFrame: NSMakeRect(0, 0, 200, 200)];
+    NSRulerView *rv = [[NSRulerView alloc] initWithScrollView: sv
+                                                  orientation: NSHorizontalRuler];
+    NSImage *img = [[NSImage alloc] initWithSize: NSMakeSize(20, 16)];
 
-    NSTabViewItem *it = [[NSTabViewItem alloc] initWithIdentifier: @"myId"];
-    printf("INIT ident=%s label=%s view=%s ifr=%s tabState=%d toolTip=%s vc=%s\n",
-           [it identifier] == nil ? "nil" : [[[it identifier] description] UTF8String],
-           [it label] == nil ? "nil" : [[it label] UTF8String],
-           [it view] == nil ? "nil" : "set",
-           [it initialFirstResponder] == nil ? "nil" : "set",
-           (int)[it tabState],
-           [it toolTip] == nil ? "nil" : [[it toolTip] UTF8String],
-           [it viewController] == nil ? "nil" : "set");
-    if ([it respondsToSelector: @selector(color)])
-      printf("INIT color=%s\n", [it color] == nil ? "nil" : "set");
-    else
-      printf("INIT color=unavailable\n");
+    NSRulerMarker *m = [[NSRulerMarker alloc] initWithRulerView: rv
+                                                 markerLocation: 100.0
+                                                          image: img
+                                                    imageOrigin: NSMakePoint(3, 4)];
+    printf("INIT loc=%g imgOrigin=%gx%g imageSame=%d rulerSame=%d movable=%d removable=%d repObj=%s\n",
+           [m markerLocation], [m imageOrigin].x, [m imageOrigin].y,
+           [m image] == img, [m ruler] == rv, [m isMovable], [m isRemovable],
+           [m representedObject] == nil ? "nil" : "set");
+    printf("INIT thickness=%g\n", [m thicknessRequiredInRuler]);
 
-    NSTabViewItem *st = [[NSTabViewItem alloc] initWithIdentifier: @"x"];
-    [st setLabel: @"L"];
-    [st setIdentifier: @"ID2"];
-    [st setToolTip: @"T"];
-    printf("SET label=%s ident=%s toolTip=%s\n",
-           [st label] == nil ? "nil" : [[st label] UTF8String],
-           [st identifier] == nil ? "nil" : [[[st identifier] description] UTF8String],
-           [st toolTip] == nil ? "nil" : [[st toolTip] UTF8String]);
+    [m setMarkerLocation: 200.0];
+    [m setImageOrigin: NSMakePoint(5, 6)];
+    [m setMovable: NO];
+    [m setRemovable: YES];
+    [m setRepresentedObject: @"obj"];
+    printf("SET loc=%g imgOrigin=%gx%g movable=%d removable=%d repObj=%s\n",
+           [m markerLocation], [m imageOrigin].x, [m imageOrigin].y,
+           [m isMovable], [m isRemovable],
+           [m representedObject] == nil ? "nil"
+             : [[[m representedObject] description] UTF8String]);
+
+    @try
+      {
+        [[NSRulerMarker alloc] initWithRulerView: nil
+                                  markerLocation: 0.0
+                                           image: img
+                                     imageOrigin: NSZeroPoint];
+        printf("EXC nilRuler no-raise\n");
+      }
+    @catch (NSException *e)
+      {
+        printf("EXC nilRuler raised %s\n", [[e name] UTF8String]);
+      }
+    @try
+      {
+        [[NSRulerMarker alloc] initWithRulerView: rv
+                                  markerLocation: 0.0
+                                           image: nil
+                                     imageOrigin: NSZeroPoint];
+        printf("EXC nilImage no-raise\n");
+      }
+    @catch (NSException *e)
+      {
+        printf("EXC nilImage raised %s\n", [[e name] UTF8String]);
+      }
   }
   return 0;
 }
