@@ -1,10 +1,10 @@
-/* Apple oracle for the NSLevelIndicatorCell coverage test.  Probes the enum
-   values, init and per-style defaults (min/max/warning/critical/ticks/value),
-   value clamping to [min,max] (on set-value and on later min/max changes),
-   the tickMarkValueAtIndex: formula and its out-of-range behaviour, and the
-   plain setter round-trips.  Portable so the same file runs under GNUstep for
-   an A/B.  Prints enum values as numbers (they can differ Apple vs GNUstep);
-   the tests assert named constants, not these numbers. */
+/* Apple oracle for the NSDatePickerCell coverage test.  Probes the enum
+   values, the init defaults (style/mode/elements/timeInterval/min/max/
+   dateValue/colors/calendar/locale/timeZone), whether dateValue is clamped to
+   [minDate,maxDate] on set and on later min/max changes, and the plain setter
+   round-trips.  Portable so the same file runs under GNUstep for an A/B.
+   Dates are printed as timeIntervalSinceReferenceDate so the two sides compare
+   without locale/formatting noise. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -12,23 +12,19 @@
 #endif
 #include <stdio.h>
 
-/* Apple's style getter is -levelIndicatorStyle; GNUstep implements -style
-   instead (the setter -setLevelIndicatorStyle: matches on both).  Declare the
-   Apple name so it compiles everywhere and pick whichever the object answers. */
-@interface NSLevelIndicatorCell (OracleCompat)
-- (NSLevelIndicatorStyle) levelIndicatorStyle;
-@end
-
-static long
-styleOf(NSLevelIndicatorCell *c)
+static const char *
+iv(NSDate *d)
 {
-  if ([c respondsToSelector: @selector(levelIndicatorStyle)])
-    return (long)[c levelIndicatorStyle];
-#ifndef __APPLE__
-  if ([c respondsToSelector: @selector(style)])
-    return (long)[c style];
-#endif
-  return -999;
+  static char buf[64];
+  if (d == nil) return "nil";
+  snprintf(buf, sizeof(buf), "%.1f", [d timeIntervalSinceReferenceDate]);
+  return buf;
+}
+
+static NSDate *
+at(double t)
+{
+  return [NSDate dateWithTimeIntervalSinceReferenceDate: t];
 }
 
 int
@@ -37,134 +33,69 @@ main(int argc, const char **argv)
   setvbuf(stdout, NULL, _IONBF, 0);
   @autoreleasepool
   {
-    NSLevelIndicatorStyle styles[4];
-    int i;
-
-    /* NSCell touches the backend (font enumerator) under GNUstep, so the
-       shared application has to exist first; harmless on macOS. */
     [NSApplication sharedApplication];
 
-    printf("ENUM Relevancy=%d Continuous=%d Discrete=%d Rating=%d\n",
-           (int)NSRelevancyLevelIndicatorStyle,
-           (int)NSContinuousCapacityLevelIndicatorStyle,
-           (int)NSDiscreteCapacityLevelIndicatorStyle,
-           (int)NSRatingLevelIndicatorStyle);
+    printf("ENUM style TFS=%d CC=%d TF=%d\n",
+           (int)NSTextFieldAndStepperDatePickerStyle,
+           (int)NSClockAndCalendarDatePickerStyle,
+           (int)NSTextFieldDatePickerStyle);
+    printf("ENUM mode Single=%d Range=%d\n",
+           (int)NSSingleDateMode, (int)NSRangeDateMode);
+    printf("ENUM elem HM=0x%x HMS=0x%x TZ=0x%x YM=0x%x YMD=0x%x Era=0x%x\n",
+           (unsigned)NSHourMinuteDatePickerElementFlag,
+           (unsigned)NSHourMinuteSecondDatePickerElementFlag,
+           (unsigned)NSTimeZoneDatePickerElementFlag,
+           (unsigned)NSYearMonthDatePickerElementFlag,
+           (unsigned)NSYearMonthDayDatePickerElementFlag,
+           (unsigned)NSEraDatePickerElementFlag);
 
     /* init defaults */
-    NSLevelIndicatorCell *c = [[NSLevelIndicatorCell alloc] init];
-    printf("INIT style=%ld min=%g max=%g warn=%g crit=%g ticks=%ld major=%ld value=%g\n",
-           styleOf(c), [c minValue], [c maxValue], [c warningValue],
-           [c criticalValue], (long)[c numberOfTickMarks],
-           (long)[c numberOfMajorTickMarks], [c doubleValue]);
+    NSDatePickerCell *c = [[NSDatePickerCell alloc] init];
+    printf("INIT style=%lu mode=%lu elements=0x%lx timeInterval=%g "
+           "minDate=%s maxDate=%s draws=%d bg=%s txt=%s dateValue=%s\n",
+           (unsigned long)[c datePickerStyle], (unsigned long)[c datePickerMode],
+           (unsigned long)[c datePickerElements], [c timeInterval],
+           iv([c minDate]), iv([c maxDate]), [c drawsBackground],
+           [c backgroundColor] == nil ? "nil" : "set",
+           [c textColor] == nil ? "nil" : "set",
+           iv([c dateValue]));
+    printf("INIT calendar=%s locale=%s tz=%s\n",
+           [c calendar] == nil ? "nil" : [[[c calendar] calendarIdentifier] UTF8String],
+           [c locale] == nil ? "nil" : [[[c locale] localeIdentifier] UTF8String],
+           [c timeZone] == nil ? "nil" : [[[c timeZone] name] UTF8String]);
 
-    /* per-style init defaults */
-    styles[0] = NSRelevancyLevelIndicatorStyle;
-    styles[1] = NSContinuousCapacityLevelIndicatorStyle;
-    styles[2] = NSDiscreteCapacityLevelIndicatorStyle;
-    styles[3] = NSRatingLevelIndicatorStyle;
-    for (i = 0; i < 4; i++)
-      {
-        NSLevelIndicatorCell *s =
-            [[NSLevelIndicatorCell alloc] initWithLevelIndicatorStyle: styles[i]];
-        printf("STYLEINIT style=%d min=%g max=%g warn=%g crit=%g value=%g\n",
-               (int)styles[i], [s minValue], [s maxValue], [s warningValue],
-               [s criticalValue], [s doubleValue]);
-      }
-
-    /* value clamping to [min,max] at set-value time (min=2, max=8) */
-    NSLevelIndicatorCell *cl = [[NSLevelIndicatorCell alloc] init];
-    [cl setMinValue: 2.0];
-    [cl setMaxValue: 8.0];
-    [cl setDoubleValue: 100.0];
-    printf("CLAMP set=100 -> value=%g\n", [cl doubleValue]);
-    [cl setDoubleValue: -100.0];
-    printf("CLAMP set=-100 -> value=%g\n", [cl doubleValue]);
-    [cl setDoubleValue: 5.0];
-    printf("CLAMP set=5 -> value=%g\n", [cl doubleValue]);
+    /* clamping of dateValue to [minDate, maxDate] (min=0, max=1e6) */
+    NSDatePickerCell *cl = [[NSDatePickerCell alloc] init];
+    [cl setMinDate: at(0.0)];
+    [cl setMaxDate: at(1000000.0)];
+    [cl setDateValue: at(-1000000.0)];
+    printf("CLAMP below-min -> %s\n", iv([cl dateValue]));
+    [cl setDateValue: at(2000000.0)];
+    printf("CLAMP above-max -> %s\n", iv([cl dateValue]));
+    [cl setDateValue: at(500000.0)];
+    printf("CLAMP in-range -> %s\n", iv([cl dateValue]));
 
     /* re-clamp when min/max move past the current value */
-    NSLevelIndicatorCell *rc = [[NSLevelIndicatorCell alloc] init];
-    [rc setMinValue: 0.0];
-    [rc setMaxValue: 10.0];
-    [rc setDoubleValue: 5.0];
-    [rc setMaxValue: 3.0];
-    printf("RECLAMP maxTo3 value(was5)=%g\n", [rc doubleValue]);
-    [rc setMinValue: 4.0];
-    printf("RECLAMP minTo4 value=%g\n", [rc doubleValue]);
-
-    /* tickMarkValueAtIndex: formula (min=0, max=10, 11 ticks) */
-    NSLevelIndicatorCell *t = [[NSLevelIndicatorCell alloc] init];
-    [t setMinValue: 0.0];
-    [t setMaxValue: 10.0];
-    [t setNumberOfTickMarks: 11];
-    @try
-      {
-        printf("TICK n=11 [0]=%g [5]=%g [10]=%g\n",
-               [t tickMarkValueAtIndex: 0], [t tickMarkValueAtIndex: 5],
-               [t tickMarkValueAtIndex: 10]);
-      }
-    @catch (NSException *e)
-      {
-        printf("TICK in-range raised %s\n", [[e name] UTF8String]);
-      }
-    @try
-      {
-        double v = [t tickMarkValueAtIndex: 11];
-        printf("TICK[11] no-raise value=%g\n", v);
-      }
-    @catch (NSException *e)
-      {
-        printf("TICK[11] raised %s\n", [[e name] UTF8String]);
-      }
-    @try
-      {
-        double v = [t tickMarkValueAtIndex: -1];
-        printf("TICK[-1] no-raise value=%g\n", v);
-      }
-    @catch (NSException *e)
-      {
-        printf("TICK[-1] raised %s\n", [[e name] UTF8String]);
-      }
-
-    /* tick edge cases: n==1 (divisor n-1 would be 0) and n==2 */
-    NSLevelIndicatorCell *t1 = [[NSLevelIndicatorCell alloc] init];
-    [t1 setMinValue: 0.0];
-    [t1 setMaxValue: 10.0];
-    [t1 setNumberOfTickMarks: 1];
-    @try
-      {
-        printf("TICK1 n=1 [0]=%g\n", [t1 tickMarkValueAtIndex: 0]);
-      }
-    @catch (NSException *e)
-      {
-        printf("TICK1 n=1 raised %s\n", [[e name] UTF8String]);
-      }
-    NSLevelIndicatorCell *t2 = [[NSLevelIndicatorCell alloc] init];
-    [t2 setMinValue: 0.0];
-    [t2 setMaxValue: 10.0];
-    [t2 setNumberOfTickMarks: 2];
-    @try
-      {
-        printf("TICK2 n=2 [0]=%g [1]=%g\n",
-               [t2 tickMarkValueAtIndex: 0], [t2 tickMarkValueAtIndex: 1]);
-      }
-    @catch (NSException *e)
-      {
-        printf("TICK2 n=2 raised %s\n", [[e name] UTF8String]);
-      }
+    NSDatePickerCell *rc = [[NSDatePickerCell alloc] init];
+    [rc setDateValue: at(500000.0)];
+    [rc setMinDate: at(600000.0)];
+    printf("RECLAMP minAboveValue -> %s\n", iv([rc dateValue]));
+    NSDatePickerCell *rc2 = [[NSDatePickerCell alloc] init];
+    [rc2 setDateValue: at(500000.0)];
+    [rc2 setMaxDate: at(400000.0)];
+    printf("RECLAMP maxBelowValue -> %s\n", iv([rc2 dateValue]));
 
     /* plain setter round-trips */
-    NSLevelIndicatorCell *st = [[NSLevelIndicatorCell alloc] init];
-    [st setWarningValue: 7.5];
-    [st setCriticalValue: 9.25];
-    [st setNumberOfMajorTickMarks: 3];
-    [st setNumberOfTickMarks: 9];
-    [st setMinValue: 1.0];
-    [st setMaxValue: 20.0];
-    printf("SET warn=%g crit=%g major=%ld ticks=%ld min=%g max=%g\n",
-           [st warningValue], [st criticalValue],
-           (long)[st numberOfMajorTickMarks], (long)[st numberOfTickMarks],
-           [st minValue], [st maxValue]);
+    NSDatePickerCell *st = [[NSDatePickerCell alloc] init];
+    [st setDatePickerStyle: NSClockAndCalendarDatePickerStyle];
+    [st setDatePickerMode: NSRangeDateMode];
+    [st setDatePickerElements: NSYearMonthDayDatePickerElementFlag];
+    [st setTimeInterval: 3600.0];
+    [st setDrawsBackground: YES];
+    printf("SET style=%lu mode=%lu elements=0x%lx timeInterval=%g draws=%d\n",
+           (unsigned long)[st datePickerStyle], (unsigned long)[st datePickerMode],
+           (unsigned long)[st datePickerElements], [st timeInterval],
+           [st drawsBackground]);
   }
   return 0;
 }
