@@ -1,23 +1,30 @@
-/* Apple oracle: what a nil label does.  Fred would rather the empty-string
-   default were set in the initialiser than answered for in the getter.  That
-   only covers the same ground if AppKit lets a label go back to nil.
-   Apple-only. */
+/* Apple oracle for NSSharingServicePickerToolbarItem (a stub here: the getters
+   answer nil and the setters do nothing) and for whether AppKit still has
+   NSNibConnector at all, which decides whether that class can be compared
+   against anything.  Apple-only. */
 #import <Cocoa/Cocoa.h>
+#import <objc/runtime.h>
 #include <stdio.h>
 
-static const char *
-show(NSString *s)
+#define SECTION(NAME) \
+  printf("\n== " NAME " ==\n"); \
+  @try {
+
+#define ENDSECTION \
+  } @catch (NSException *e) { \
+    printf("EXCEPTION %s: %s\n", [[e name] UTF8String], \
+           [[e reason] UTF8String]); \
+  }
+
+@interface PickerDelegate : NSObject <NSSharingServicePickerToolbarItemDelegate>
+@end
+@implementation PickerDelegate
+- (NSArray *) itemsForSharingServicePickerToolbarItem:
+  (NSSharingServicePickerToolbarItem *)item
 {
-  if (s == nil)
-    {
-      return "nil";
-    }
-  if ([s length] == 0)
-    {
-      return "empty";
-    }
-  return [s UTF8String];
+  return [NSArray arrayWithObject: @"item"];
 }
+@end
 
 int
 main(int argc, const char **argv)
@@ -27,57 +34,77 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("== NSTabViewItem label ==\n");
-    {
-      NSTabViewItem *i = [[NSTabViewItem alloc] initWithIdentifier: @"id"];
+    SECTION("NSNibConnector: does AppKit have it?")
+    Class c = NSClassFromString(@"NSNibConnector");
 
-      printf("DEFAULT  label=%s\n", show([i label]));
-      [i setLabel: @"x"];
-      printf("SET x    label=%s\n", show([i label]));
-      [i setLabel: nil];
-      printf("SET nil  label=%s\n", show([i label]));
-    }
+    printf("NSNibConnector class=%s\n", c == Nil ? "ABSENT" : "present");
+    if (c != Nil)
+      {
+        id conn = [[c alloc] init];
+        const char *sels[] = { "source", "setSource:", "destination",
+                               "setDestination:", "label", "setLabel:",
+                               "establishConnection",
+                               "replaceObject:withObject:", NULL };
+        int i;
 
-    printf("\n== NSToolbarItem label and paletteLabel ==\n");
-    {
-      NSToolbarItem *t = [[NSToolbarItem alloc] initWithItemIdentifier: @"id"];
+        printf("NSNibConnector init nonnil=%d\n", conn != nil);
+        for (i = 0; sels[i] != NULL; i++)
+          {
+            SEL s = NSSelectorFromString([NSString stringWithUTF8String:
+              sels[i]]);
 
-      printf("DEFAULT  label=%s paletteLabel=%s\n",
-             show([t label]), show([t paletteLabel]));
-      [t setLabel: @"L"];
-      [t setPaletteLabel: @"P"];
-      printf("SET      label=%s paletteLabel=%s\n",
-             show([t label]), show([t paletteLabel]));
-      [t setLabel: nil];
-      [t setPaletteLabel: nil];
-      printf("SET nil  label=%s paletteLabel=%s\n",
-             show([t label]), show([t paletteLabel]));
-    }
+            printf("  HAS %-28s %d\n", sels[i], [conn respondsToSelector: s]);
+          }
+      }
+    ENDSECTION
 
-    printf("\n== NSTabViewItem through an archive with no label ==\n");
-    {
-      /* The keyed decode path here calls setLabel: with whatever it decodes,
-         so an archive with no label hands the setter a nil. */
-      NSTabViewItem *i = [[NSTabViewItem alloc] initWithIdentifier: @"id"];
-      NSData *d;
-      NSTabViewItem *back;
+    SECTION("NSSharingServicePickerToolbarItem defaults")
+    NSSharingServicePickerToolbarItem *item;
 
-      d = [NSKeyedArchiver archivedDataWithRootObject: i
-                            requiringSecureCoding: NO
-                                            error: NULL];
-      if (d != nil)
-        {
-          back = [NSKeyedUnarchiver unarchivedObjectOfClass: [NSTabViewItem class]
-                                                   fromData: d
-                                                      error: NULL];
-          printf("ARCHIVED label=%s\n", back == nil ? "(decode failed)"
-                                                    : show([back label]));
-        }
-      else
-        {
-          printf("ARCHIVED (encode failed)\n");
-        }
-    }
+    item = [[NSSharingServicePickerToolbarItem alloc]
+      initWithItemIdentifier: @"share"];
+    printf("INIT nonnil=%d identifier=%s\n", item != nil,
+           [[item itemIdentifier] UTF8String]);
+    printf("INIT delegate=%s activityItemsConfiguration=%s\n",
+           [item delegate] == nil ? "nil" : "set",
+           [item activityItemsConfiguration] == nil ? "nil" : "set");
+    ENDSECTION
+
+    SECTION("NSSharingServicePickerToolbarItem round trips")
+    NSSharingServicePickerToolbarItem *item;
+    PickerDelegate *d = [[PickerDelegate alloc] init];
+
+    item = [[NSSharingServicePickerToolbarItem alloc]
+      initWithItemIdentifier: @"share"];
+    [item setDelegate: d];
+    printf("SET delegateSame=%d\n", [item delegate] == d);
+
+    /* the configuration is any object, so a string will do to see whether it
+       is kept */
+    [item setActivityItemsConfiguration: (id)@"config"];
+    printf("SET configSame=%d config=%s\n",
+           [item activityItemsConfiguration] == (id)@"config",
+           [item activityItemsConfiguration] == nil ? "nil"
+             : [[[item activityItemsConfiguration] description] UTF8String]);
+
+    [item setDelegate: nil];
+    printf("SET delegateNil=%s\n", [item delegate] == nil ? "nil" : "set");
+    ENDSECTION
+
+    SECTION("is the delegate retained?")
+    NSSharingServicePickerToolbarItem *item;
+    PickerDelegate *d = [[PickerDelegate alloc] init];
+    NSUInteger before;
+    NSUInteger after;
+
+    item = [[NSSharingServicePickerToolbarItem alloc]
+      initWithItemIdentifier: @"share"];
+    before = [d retainCount];
+    [item setDelegate: d];
+    after = [d retainCount];
+    printf("DELEGATE retainCount before=%lu after=%lu (weak if unchanged)\n",
+           (unsigned long)before, (unsigned long)after);
+    ENDSECTION
   }
   return 0;
 }
