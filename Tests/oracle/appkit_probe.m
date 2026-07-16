@@ -1,8 +1,13 @@
-/* Apple oracle, pass 7 for NSToolbarItemGroup.  Last pass before implementing:
-   where the factory puts the target and the action, what the titles become,
-   what happens when the labels array is shorter than the titles, and what the
-   generated subitems look like.  Apple-only. */
+/* Apple oracle for NSTableCellView, NSAppearance and NSDataAsset.  Probes the
+   enumeration values (NSTableViewRowSizeStyle and NSBackgroundStyle), the init
+   defaults, the setter round-trips, what appearanceNamed: does with a real and
+   a bogus name, and what a data asset with no asset catalog does.  Portable so
+   the same file runs under GNUstep for an A/B. */
+#ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
+#else
+#import <AppKit/AppKit.h>
+#endif
 #include <stdio.h>
 
 #define SECTION(NAME) \
@@ -15,30 +20,10 @@
            [[e reason] UTF8String]); \
   }
 
-@interface Target : NSObject
-- (void) fire: (id)sender;
-@end
-@implementation Target
-- (void) fire: (id)sender { }
-@end
-
-@interface NSToolbarItemGroup (Probe)
-+ (id) groupWithItemIdentifier: (NSString *)identifier
-                        titles: (NSArray *)titles
-                 selectionMode: (NSToolbarItemGroupSelectionMode)mode
-                        labels: (NSArray *)labels
-                        target: (id)target
-                        action: (SEL)action;
-@end
-
-static void
-dumpItem(NSToolbarItem *it, Target *t, const char *tag)
+static const char *
+nilstr(id o)
 {
-  printf("%s identifier=%s label=%s paletteLabel=%s targetIsT=%d action=%s\n",
-         tag, [[it itemIdentifier] UTF8String], [[it label] UTF8String],
-         [[it paletteLabel] UTF8String], [it target] == t,
-         [it action] == NULL ? "NULL"
-           : [NSStringFromSelector([it action]) UTF8String]);
+  return o == nil ? "nil" : "set";
 }
 
 int
@@ -48,89 +33,109 @@ main(int argc, const char **argv)
   @autoreleasepool
   {
     [NSApplication sharedApplication];
-    Target *t = [[Target alloc] init];
 
-    SECTION("where target and action land")
-    NSToolbarItemGroup *g;
-    NSUInteger i;
+    SECTION("enums")
+    printf("ROWSIZE default=%ld custom=%ld small=%ld medium=%ld large=%ld\n",
+           (long)NSTableViewRowSizeStyleDefault,
+           (long)NSTableViewRowSizeStyleCustom,
+           (long)NSTableViewRowSizeStyleSmall,
+           (long)NSTableViewRowSizeStyleMedium,
+           (long)NSTableViewRowSizeStyleLarge);
+    printf("BGSTYLE normal=%ld emphasized=%ld raised=%ld lowered=%ld\n",
+           (long)NSBackgroundStyleNormal,
+           (long)NSBackgroundStyleEmphasized,
+           (long)NSBackgroundStyleRaised,
+           (long)NSBackgroundStyleLowered);
+    ENDSECTION
 
-    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
-           titles: [NSArray arrayWithObjects: @"T0", @"T1", nil]
-           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
-           labels: [NSArray arrayWithObjects: @"L0", @"L1", nil]
-           target: t
-           action: @selector(fire:)];
-    dumpItem(g, t, "GROUP");
-    printf("GROUP label=%s\n", [[g label] UTF8String]);
-    for (i = 0; i < [[g subitems] count]; i++)
+    SECTION("NSTableCellView init")
+    NSTableCellView *v = [[NSTableCellView alloc] initWithFrame:
+      NSMakeRect(0, 0, 100, 20)];
+
+    printf("INIT objectValue=%s imageView=%s textField=%s\n",
+           nilstr([v objectValue]), nilstr([v imageView]),
+           nilstr([v textField]));
+    printf("INIT rowSizeStyle=%ld backgroundStyle=%ld\n",
+           (long)[v rowSizeStyle], (long)[v backgroundStyle]);
+
+    NSTableCellView *z = [[NSTableCellView alloc] init];
+    printf("PLAININIT rowSizeStyle=%ld backgroundStyle=%ld frameW=%g\n",
+           (long)[z rowSizeStyle], (long)[z backgroundStyle],
+           (double)[z frame].size.width);
+    ENDSECTION
+
+    SECTION("NSTableCellView round trips")
+    NSTableCellView *v = [[NSTableCellView alloc] initWithFrame:
+      NSMakeRect(0, 0, 100, 20)];
+    NSTextField *tf = [[NSTextField alloc] initWithFrame:
+      NSMakeRect(0, 0, 50, 20)];
+    NSImageView *iv = [[NSImageView alloc] initWithFrame:
+      NSMakeRect(0, 0, 20, 20)];
+    NSString *obj = @"value";
+
+    [v setObjectValue: obj];
+    [v setTextField: tf];
+    [v setImageView: iv];
+    [v setRowSizeStyle: NSTableViewRowSizeStyleMedium];
+    [v setBackgroundStyle: NSBackgroundStyleEmphasized];
+    printf("SET objectValueSame=%d textFieldSame=%d imageViewSame=%d\n",
+           [v objectValue] == obj, [v textField] == tf, [v imageView] == iv);
+    printf("SET rowSizeStyle=%ld backgroundStyle=%ld\n",
+           (long)[v rowSizeStyle], (long)[v backgroundStyle]);
+    ENDSECTION
+
+    SECTION("NSAppearance named")
+    NSAppearance *aqua = [NSAppearance appearanceNamed: NSAppearanceNameAqua];
+
+    printf("AQUACONST value=%s\n", [NSAppearanceNameAqua UTF8String]);
+    printf("AQUA nonnil=%d name=%s vibrancy=%d\n",
+           aqua != nil, [[aqua name] UTF8String], [aqua allowsVibrancy]);
+
+    NSAppearance *vib = [NSAppearance appearanceNamed:
+      NSAppearanceNameVibrantLight];
+    printf("VIBRANTLIGHT nonnil=%d name=%s vibrancy=%d\n",
+           vib != nil, [[vib name] UTF8String], [vib allowsVibrancy]);
+
+    NSAppearance *bogus = [NSAppearance appearanceNamed: @"NotAnAppearance"];
+    printf("BOGUS result=%s name=%s\n", nilstr(bogus),
+           bogus == nil ? "-" : [[bogus name] UTF8String]);
+    ENDSECTION
+
+    SECTION("NSAppearance current")
+    NSAppearance *aqua = [NSAppearance appearanceNamed: NSAppearanceNameAqua];
+    NSAppearance *before = [NSAppearance currentAppearance];
+
+    printf("CURRENT beforeSet=%s\n", nilstr(before));
+    [NSAppearance setCurrentAppearance: aqua];
+    printf("CURRENT afterSet=%s same=%d\n",
+           nilstr([NSAppearance currentAppearance]),
+           [NSAppearance currentAppearance] == aqua);
+    ENDSECTION
+
+    SECTION("NSAppearance bestMatch")
+    NSAppearance *aqua = [NSAppearance appearanceNamed: NSAppearanceNameAqua];
+    NSArray *names = [NSArray arrayWithObjects: NSAppearanceNameAqua,
+      NSAppearanceNameDarkAqua, nil];
+
+    printf("BESTMATCH result=%s\n",
+           [aqua bestMatchFromAppearancesWithNames: names] == nil ? "nil"
+             : [[aqua bestMatchFromAppearancesWithNames: names] UTF8String]);
+    ENDSECTION
+
+    SECTION("NSDataAsset")
+    NSDataAsset *a = [[NSDataAsset alloc] initWithName: @"NoSuchAsset"];
+
+    printf("MISSING result=%s\n", nilstr(a));
+    if (a != nil)
       {
-        char tag[16];
-
-        snprintf(tag, sizeof(tag), "SUB%lu", (unsigned long)i);
-        dumpItem([[g subitems] objectAtIndex: i], t, tag);
+        printf("MISSING name=%s data=%s typeIdentifier=%s\n",
+               [[a name] UTF8String], nilstr([a data]),
+               nilstr([a typeIdentifier]));
       }
-    ENDSECTION
 
-    SECTION("labels shorter than titles")
-    NSToolbarItemGroup *g;
-    NSUInteger i;
-
-    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
-           titles: [NSArray arrayWithObjects: @"T0", @"T1", @"T2", nil]
-           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
-           labels: [NSArray arrayWithObject: @"L0"]
-           target: nil
-           action: NULL];
-    printf("SHORTLABELS subcount=%lu\n", (unsigned long)[[g subitems] count]);
-    for (i = 0; i < [[g subitems] count]; i++)
-      {
-        printf("  SUB%lu label='%s'\n", (unsigned long)i,
-               [[[[g subitems] objectAtIndex: i] label] UTF8String]);
-      }
-    ENDSECTION
-
-    SECTION("nil titles")
-    NSToolbarItemGroup *g;
-
-    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
-           titles: nil
-           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
-           labels: [NSArray arrayWithObjects: @"L0", @"L1", nil]
-           target: nil
-           action: NULL];
-    printf("NILTITLES nonnil=%d subcount=%lu\n",
-           g != nil, (unsigned long)[[g subitems] count]);
-    ENDSECTION
-
-    SECTION("identifier shape")
-    NSToolbarItemGroup *g;
-    NSString *sub0;
-
-    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
-           titles: [NSArray arrayWithObject: @"T0"]
-           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
-           labels: [NSArray arrayWithObject: @"L0"]
-           target: nil
-           action: NULL];
-    sub0 = [[[g subitems] objectAtIndex: 0] itemIdentifier];
-    printf("SUBID len=%lu dashes=%d unique=%d\n",
-           (unsigned long)[sub0 length],
-           (int)[[sub0 componentsSeparatedByString: @"-"] count] - 1,
-           ![sub0 isEqualToString: @"grp"]);
-    ENDSECTION
-
-    SECTION("selection is live on a hand built group after a factory group")
-    /* Confirms the bare-init group really is the inert one, so the difference
-       is set up by the factory and not by the subitems. */
-    NSToolbarItemGroup *bare = [[NSToolbarItemGroup alloc]
-                                 initWithItemIdentifier: @"bare"];
-    NSToolbarItem *a = [[NSToolbarItem alloc] initWithItemIdentifier: @"a"];
-
-    [bare setSubitems: [NSArray arrayWithObject: a]];
-    [bare setSelectionMode: NSToolbarItemGroupSelectionModeSelectOne];
-    [bare setSelected: YES atIndex: 0];
-    printf("BARE selectedIndex=%ld isSel0=%d\n",
-           (long)[bare selectedIndex], [bare isSelectedAtIndex: 0]);
+    NSDataAsset *b = [[NSDataAsset alloc] initWithName: @"NoSuchAsset"
+                                                bundle: [NSBundle mainBundle]];
+    printf("MISSING-BUNDLE result=%s\n", nilstr(b));
     ENDSECTION
   }
   return 0;
