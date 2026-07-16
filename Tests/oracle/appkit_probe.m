@@ -1,13 +1,8 @@
-/* Apple oracle for NSTableCellView, NSAppearance and NSDataAsset.  Probes the
-   enumeration values (NSTableViewRowSizeStyle and NSBackgroundStyle), the init
-   defaults, the setter round-trips, what appearanceNamed: does with a real and
-   a bogus name, and what a data asset with no asset catalog does.  Portable so
-   the same file runs under GNUstep for an A/B. */
-#ifdef __APPLE__
+/* Apple oracle, pass 2 for NSAppearance.  Which named appearances allow
+   vibrancy, what the name constants are, what the current appearance is before
+   anything sets it, and how bestMatchFromAppearancesWithNames: chooses.
+   Apple-only. */
 #import <Cocoa/Cocoa.h>
-#else
-#import <AppKit/AppKit.h>
-#endif
 #include <stdio.h>
 
 #define SECTION(NAME) \
@@ -20,10 +15,13 @@
            [[e reason] UTF8String]); \
   }
 
-static const char *
-nilstr(id o)
+static void
+dumpBest(NSString *ofName, NSArray *names, const char *tag)
 {
-  return o == nil ? "nil" : "set";
+  NSAppearance *a = [NSAppearance appearanceNamed: ofName];
+  NSString *best = [a bestMatchFromAppearancesWithNames: names];
+
+  printf("%-46s -> %s\n", tag, best == nil ? "nil" : [best UTF8String]);
 }
 
 int
@@ -34,108 +32,75 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    SECTION("enums")
-    printf("ROWSIZE default=%ld custom=%ld small=%ld medium=%ld large=%ld\n",
-           (long)NSTableViewRowSizeStyleDefault,
-           (long)NSTableViewRowSizeStyleCustom,
-           (long)NSTableViewRowSizeStyleSmall,
-           (long)NSTableViewRowSizeStyleMedium,
-           (long)NSTableViewRowSizeStyleLarge);
-    printf("BGSTYLE normal=%ld emphasized=%ld raised=%ld lowered=%ld\n",
-           (long)NSBackgroundStyleNormal,
-           (long)NSBackgroundStyleEmphasized,
-           (long)NSBackgroundStyleRaised,
-           (long)NSBackgroundStyleLowered);
-    ENDSECTION
+    SECTION("name constants and vibrancy")
+    NSArray *names = [NSArray arrayWithObjects:
+      NSAppearanceNameAqua,
+      NSAppearanceNameDarkAqua,
+      NSAppearanceNameVibrantLight,
+      NSAppearanceNameVibrantDark,
+      NSAppearanceNameAccessibilityHighContrastAqua,
+      NSAppearanceNameAccessibilityHighContrastDarkAqua,
+      NSAppearanceNameAccessibilityHighContrastVibrantLight,
+      NSAppearanceNameAccessibilityHighContrastVibrantDark,
+      nil];
+    NSUInteger i;
 
-    SECTION("NSTableCellView init")
-    NSTableCellView *v = [[NSTableCellView alloc] initWithFrame:
-      NSMakeRect(0, 0, 100, 20)];
-
-    printf("INIT objectValue=%s imageView=%s textField=%s\n",
-           nilstr([v objectValue]), nilstr([v imageView]),
-           nilstr([v textField]));
-    printf("INIT rowSizeStyle=%ld backgroundStyle=%ld\n",
-           (long)[v rowSizeStyle], (long)[v backgroundStyle]);
-
-    NSTableCellView *z = [[NSTableCellView alloc] init];
-    printf("PLAININIT rowSizeStyle=%ld backgroundStyle=%ld frameW=%g\n",
-           (long)[z rowSizeStyle], (long)[z backgroundStyle],
-           (double)[z frame].size.width);
-    ENDSECTION
-
-    SECTION("NSTableCellView round trips")
-    NSTableCellView *v = [[NSTableCellView alloc] initWithFrame:
-      NSMakeRect(0, 0, 100, 20)];
-    NSTextField *tf = [[NSTextField alloc] initWithFrame:
-      NSMakeRect(0, 0, 50, 20)];
-    NSImageView *iv = [[NSImageView alloc] initWithFrame:
-      NSMakeRect(0, 0, 20, 20)];
-    NSString *obj = @"value";
-
-    [v setObjectValue: obj];
-    [v setTextField: tf];
-    [v setImageView: iv];
-    [v setRowSizeStyle: NSTableViewRowSizeStyleMedium];
-    [v setBackgroundStyle: NSBackgroundStyleEmphasized];
-    printf("SET objectValueSame=%d textFieldSame=%d imageViewSame=%d\n",
-           [v objectValue] == obj, [v textField] == tf, [v imageView] == iv);
-    printf("SET rowSizeStyle=%ld backgroundStyle=%ld\n",
-           (long)[v rowSizeStyle], (long)[v backgroundStyle]);
-    ENDSECTION
-
-    SECTION("NSAppearance named")
-    NSAppearance *aqua = [NSAppearance appearanceNamed: NSAppearanceNameAqua];
-
-    printf("AQUACONST value=%s\n", [NSAppearanceNameAqua UTF8String]);
-    printf("AQUA nonnil=%d name=%s vibrancy=%d\n",
-           aqua != nil, [[aqua name] UTF8String], [aqua allowsVibrancy]);
-
-    NSAppearance *vib = [NSAppearance appearanceNamed:
-      NSAppearanceNameVibrantLight];
-    printf("VIBRANTLIGHT nonnil=%d name=%s vibrancy=%d\n",
-           vib != nil, [[vib name] UTF8String], [vib allowsVibrancy]);
-
-    NSAppearance *bogus = [NSAppearance appearanceNamed: @"NotAnAppearance"];
-    printf("BOGUS result=%s name=%s\n", nilstr(bogus),
-           bogus == nil ? "-" : [[bogus name] UTF8String]);
-    ENDSECTION
-
-    SECTION("NSAppearance current")
-    NSAppearance *aqua = [NSAppearance appearanceNamed: NSAppearanceNameAqua];
-    NSAppearance *before = [NSAppearance currentAppearance];
-
-    printf("CURRENT beforeSet=%s\n", nilstr(before));
-    [NSAppearance setCurrentAppearance: aqua];
-    printf("CURRENT afterSet=%s same=%d\n",
-           nilstr([NSAppearance currentAppearance]),
-           [NSAppearance currentAppearance] == aqua);
-    ENDSECTION
-
-    SECTION("NSAppearance bestMatch")
-    NSAppearance *aqua = [NSAppearance appearanceNamed: NSAppearanceNameAqua];
-    NSArray *names = [NSArray arrayWithObjects: NSAppearanceNameAqua,
-      NSAppearanceNameDarkAqua, nil];
-
-    printf("BESTMATCH result=%s\n",
-           [aqua bestMatchFromAppearancesWithNames: names] == nil ? "nil"
-             : [[aqua bestMatchFromAppearancesWithNames: names] UTF8String]);
-    ENDSECTION
-
-    SECTION("NSDataAsset")
-    NSDataAsset *a = [[NSDataAsset alloc] initWithName: @"NoSuchAsset"];
-
-    printf("MISSING result=%s\n", nilstr(a));
-    if (a != nil)
+    for (i = 0; i < [names count]; i++)
       {
-        printf("MISSING name=%s data=%s typeIdentifier=%s\n",
-               [[a name] UTF8String], nilstr([a data]),
-               nilstr([a typeIdentifier]));
-      }
+        NSString *n = [names objectAtIndex: i];
+        NSAppearance *a = [NSAppearance appearanceNamed: n];
 
-    NSDataAsset *b = [[NSDataAsset alloc] initWithName: @"NoSuchAsset"
-                                                bundle: [NSBundle mainBundle]];
-    printf("MISSING-BUNDLE result=%s\n", nilstr(b));
+        printf("NAME %-52s nonnil=%d nameBack=%-8s vibrancy=%d\n",
+               [n UTF8String], a != nil,
+               [[a name] isEqualToString: n] ? "same" : "DIFFERENT",
+               [a allowsVibrancy]);
+      }
+    ENDSECTION
+
+    SECTION("current appearance before anything sets it")
+    NSAppearance *cur = [NSAppearance currentAppearance];
+
+    printf("CURRENT nonnil=%d name=%s\n", cur != nil,
+           cur == nil ? "-" : [[cur name] UTF8String]);
+    ENDSECTION
+
+    SECTION("bestMatchFromAppearancesWithNames")
+    NSArray *aquaDark = [NSArray arrayWithObjects: NSAppearanceNameAqua,
+      NSAppearanceNameDarkAqua, nil];
+    NSArray *darkAqua = [NSArray arrayWithObjects: NSAppearanceNameDarkAqua,
+      NSAppearanceNameAqua, nil];
+    NSArray *onlyDark = [NSArray arrayWithObject: NSAppearanceNameDarkAqua];
+    NSArray *onlyVibrantLight = [NSArray arrayWithObject:
+      NSAppearanceNameVibrantLight];
+    NSArray *vibrantThenAqua = [NSArray arrayWithObjects:
+      NSAppearanceNameVibrantLight, NSAppearanceNameAqua, nil];
+
+    dumpBest(NSAppearanceNameAqua, aquaDark, "aqua of [aqua, darkAqua]");
+    dumpBest(NSAppearanceNameAqua, darkAqua, "aqua of [darkAqua, aqua]");
+    dumpBest(NSAppearanceNameAqua, onlyDark, "aqua of [darkAqua]");
+    dumpBest(NSAppearanceNameAqua, onlyVibrantLight, "aqua of [vibrantLight]");
+    dumpBest(NSAppearanceNameAqua, vibrantThenAqua,
+      "aqua of [vibrantLight, aqua]");
+    dumpBest(NSAppearanceNameDarkAqua, aquaDark, "darkAqua of [aqua, darkAqua]");
+    dumpBest(NSAppearanceNameDarkAqua, [NSArray arrayWithObject:
+      NSAppearanceNameAqua], "darkAqua of [aqua]");
+    dumpBest(NSAppearanceNameVibrantLight, aquaDark,
+      "vibrantLight of [aqua, darkAqua]");
+    dumpBest(NSAppearanceNameAqua, [NSArray array], "aqua of []");
+    dumpBest(NSAppearanceNameAqua, [NSArray arrayWithObject: @"Bogus"],
+      "aqua of [Bogus]");
+    ENDSECTION
+
+    SECTION("bogus appearance behaviour")
+    NSAppearance *b = [NSAppearance appearanceNamed: @"NotAnAppearance"];
+
+    printf("BOGUS nonnil=%d name=%s vibrancy=%d\n",
+           b != nil, [[b name] UTF8String], [b allowsVibrancy]);
+    printf("BOGUS best of [aqua] = %s\n",
+           [b bestMatchFromAppearancesWithNames:
+             [NSArray arrayWithObject: NSAppearanceNameAqua]] == nil ? "nil"
+             : [[b bestMatchFromAppearancesWithNames:
+                  [NSArray arrayWithObject: NSAppearanceNameAqua]] UTF8String]);
     ENDSECTION
   }
   return 0;
