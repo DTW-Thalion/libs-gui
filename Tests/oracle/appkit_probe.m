@@ -1,9 +1,7 @@
-/* Apple oracle, pass 6 for NSToolbarItemGroup.  Pins the corners the earlier
-   passes left ambiguous, all on a factory-built group where the selection API
-   is live: what selectedIndex means under SelectAny, what setSelectedIndex: -1
-   does, whether setSelectedIndex: clears the other selections, what changing
-   the selection mode does to an existing selection, and whether replacing the
-   subitems resets it.  Apple-only. */
+/* Apple oracle, pass 7 for NSToolbarItemGroup.  Last pass before implementing:
+   where the factory puts the target and the action, what the titles become,
+   what happens when the labels array is shorter than the titles, and what the
+   generated subitems look like.  Apple-only. */
 #import <Cocoa/Cocoa.h>
 #include <stdio.h>
 
@@ -17,6 +15,13 @@
            [[e reason] UTF8String]); \
   }
 
+@interface Target : NSObject
+- (void) fire: (id)sender;
+@end
+@implementation Target
+- (void) fire: (id)sender { }
+@end
+
 @interface NSToolbarItemGroup (Probe)
 + (id) groupWithItemIdentifier: (NSString *)identifier
                         titles: (NSArray *)titles
@@ -27,31 +32,13 @@
 @end
 
 static void
-dumpSelection(NSToolbarItemGroup *g, const char *tag)
+dumpItem(NSToolbarItem *it, Target *t, const char *tag)
 {
-  NSUInteger i;
-  NSUInteger count = [[g subitems] count];
-
-  printf("%s selectedIndex=%ld selected=[", tag, (long)[g selectedIndex]);
-  for (i = 0; i < count; i++)
-    {
-      printf("%d%s", [g isSelectedAtIndex: i], i + 1 == count ? "" : ",");
-    }
-  printf("]\n");
-}
-
-static NSToolbarItemGroup *
-factoryGroup(NSToolbarItemGroupSelectionMode mode)
-{
-  NSArray *titles = [NSArray arrayWithObjects: @"T0", @"T1", @"T2", nil];
-  NSArray *labels = [NSArray arrayWithObjects: @"L0", @"L1", @"L2", nil];
-
-  return [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
-                                              titles: titles
-                                       selectionMode: mode
-                                              labels: labels
-                                              target: nil
-                                              action: NULL];
+  printf("%s identifier=%s label=%s paletteLabel=%s targetIsT=%d action=%s\n",
+         tag, [[it itemIdentifier] UTF8String], [[it label] UTF8String],
+         [[it paletteLabel] UTF8String], [it target] == t,
+         [it action] == NULL ? "NULL"
+           : [NSStringFromSelector([it action]) UTF8String]);
 }
 
 int
@@ -61,88 +48,89 @@ main(int argc, const char **argv)
   @autoreleasepool
   {
     [NSApplication sharedApplication];
+    Target *t = [[Target alloc] init];
 
-    /* Is selectedIndex the last one selected, or the lowest/highest? */
-    SECTION("SelectAny selectedIndex meaning")
-    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectAny);
+    SECTION("where target and action land")
+    NSToolbarItemGroup *g;
+    NSUInteger i;
 
-    [g setSelected: YES atIndex: 2];
-    dumpSelection(g, "SEL2");
-    [g setSelected: YES atIndex: 0];
-    dumpSelection(g, "THEN-SEL0");
-    [g setSelected: YES atIndex: 1];
-    dumpSelection(g, "THEN-SEL1");
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
+           titles: [NSArray arrayWithObjects: @"T0", @"T1", nil]
+           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
+           labels: [NSArray arrayWithObjects: @"L0", @"L1", nil]
+           target: t
+           action: @selector(fire:)];
+    dumpItem(g, t, "GROUP");
+    printf("GROUP label=%s\n", [[g label] UTF8String]);
+    for (i = 0; i < [[g subitems] count]; i++)
+      {
+        char tag[16];
+
+        snprintf(tag, sizeof(tag), "SUB%lu", (unsigned long)i);
+        dumpItem([[g subitems] objectAtIndex: i], t, tag);
+      }
     ENDSECTION
 
-    SECTION("SelectAny setSelectedIndex")
-    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectAny);
+    SECTION("labels shorter than titles")
+    NSToolbarItemGroup *g;
+    NSUInteger i;
 
-    [g setSelected: YES atIndex: 0];
-    [g setSelected: YES atIndex: 2];
-    dumpSelection(g, "SEL02");
-    [g setSelectedIndex: 1];
-    dumpSelection(g, "SETIDX1");
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
+           titles: [NSArray arrayWithObjects: @"T0", @"T1", @"T2", nil]
+           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
+           labels: [NSArray arrayWithObject: @"L0"]
+           target: nil
+           action: NULL];
+    printf("SHORTLABELS subcount=%lu\n", (unsigned long)[[g subitems] count]);
+    for (i = 0; i < [[g subitems] count]; i++)
+      {
+        printf("  SUB%lu label='%s'\n", (unsigned long)i,
+               [[[[g subitems] objectAtIndex: i] label] UTF8String]);
+      }
     ENDSECTION
 
-    SECTION("setSelectedIndex -1")
-    NSToolbarItemGroup *one = factoryGroup(NSToolbarItemGroupSelectionModeSelectOne);
-    NSToolbarItemGroup *any = factoryGroup(NSToolbarItemGroupSelectionModeSelectAny);
+    SECTION("nil titles")
+    NSToolbarItemGroup *g;
 
-    [one setSelected: YES atIndex: 1];
-    dumpSelection(one, "ONE-SEL1");
-    @try { [one setSelectedIndex: -1]; dumpSelection(one, "ONE-SETIDXneg1"); }
-    @catch (NSException *e) { printf("ONE-SETIDXneg1 raised %s\n",
-      [[e name] UTF8String]); }
-
-    [any setSelected: YES atIndex: 1];
-    @try { [any setSelectedIndex: -1]; dumpSelection(any, "ANY-SETIDXneg1"); }
-    @catch (NSException *e) { printf("ANY-SETIDXneg1 raised %s\n",
-      [[e name] UTF8String]); }
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
+           titles: nil
+           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
+           labels: [NSArray arrayWithObjects: @"L0", @"L1", nil]
+           target: nil
+           action: NULL];
+    printf("NILTITLES nonnil=%d subcount=%lu\n",
+           g != nil, (unsigned long)[[g subitems] count]);
     ENDSECTION
 
-    SECTION("Momentary setSelectedIndex")
-    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeMomentary);
+    SECTION("identifier shape")
+    NSToolbarItemGroup *g;
+    NSString *sub0;
 
-    [g setSelectedIndex: 1];
-    dumpSelection(g, "MOM-SETIDX1");
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
+           titles: [NSArray arrayWithObject: @"T0"]
+           selectionMode: NSToolbarItemGroupSelectionModeSelectOne
+           labels: [NSArray arrayWithObject: @"L0"]
+           target: nil
+           action: NULL];
+    sub0 = [[[g subitems] objectAtIndex: 0] itemIdentifier];
+    printf("SUBID len=%lu dashes=%d unique=%d\n",
+           (unsigned long)[sub0 length],
+           (int)[[sub0 componentsSeparatedByString: @"-"] count] - 1,
+           ![sub0 isEqualToString: @"grp"]);
     ENDSECTION
 
-    SECTION("changing the selection mode with a live selection")
-    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectAny);
+    SECTION("selection is live on a hand built group after a factory group")
+    /* Confirms the bare-init group really is the inert one, so the difference
+       is set up by the factory and not by the subitems. */
+    NSToolbarItemGroup *bare = [[NSToolbarItemGroup alloc]
+                                 initWithItemIdentifier: @"bare"];
+    NSToolbarItem *a = [[NSToolbarItem alloc] initWithItemIdentifier: @"a"];
 
-    [g setSelected: YES atIndex: 0];
-    [g setSelected: YES atIndex: 2];
-    dumpSelection(g, "ANY-SEL02");
-    [g setSelectionMode: NSToolbarItemGroupSelectionModeSelectOne];
-    dumpSelection(g, "NOW-SELECTONE");
-    [g setSelectionMode: NSToolbarItemGroupSelectionModeMomentary];
-    dumpSelection(g, "NOW-MOMENTARY");
-    [g setSelectionMode: NSToolbarItemGroupSelectionModeSelectAny];
-    dumpSelection(g, "BACK-TO-ANY");
-    ENDSECTION
-
-    SECTION("replacing the subitems")
-    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectOne);
-    NSToolbarItem *x, *y;
-
-    [g setSelected: YES atIndex: 2];
-    dumpSelection(g, "BEFORE");
-    x = [[NSToolbarItem alloc] initWithItemIdentifier: @"x"];
-    y = [[NSToolbarItem alloc] initWithItemIdentifier: @"y"];
-    [g setSubitems: [NSArray arrayWithObjects: x, y, nil]];
-    dumpSelection(g, "AFTER-SETSUBITEMS");
-    ENDSECTION
-
-    /* Does selection work at all once subitems come from setSubitems:? */
-    SECTION("select after replacing the subitems")
-    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectOne);
-    NSToolbarItem *x, *y;
-
-    x = [[NSToolbarItem alloc] initWithItemIdentifier: @"x"];
-    y = [[NSToolbarItem alloc] initWithItemIdentifier: @"y"];
-    [g setSubitems: [NSArray arrayWithObjects: x, y, nil]];
-    @try { [g setSelected: YES atIndex: 1]; dumpSelection(g, "SEL1"); }
-    @catch (NSException *e) { printf("SEL1 raised %s\n", [[e name] UTF8String]); }
+    [bare setSubitems: [NSArray arrayWithObject: a]];
+    [bare setSelectionMode: NSToolbarItemGroupSelectionModeSelectOne];
+    [bare setSelected: YES atIndex: 0];
+    printf("BARE selectedIndex=%ld isSel0=%d\n",
+           (long)[bare selectedIndex], [bare isSelectedAtIndex: 0]);
     ENDSECTION
   }
   return 0;
