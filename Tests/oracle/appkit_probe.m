@@ -1,81 +1,28 @@
-/* Apple oracle for NSPageController's delegate flow.  Installs a delegate that
-   records every call AppKit makes, in order, so the implementation follows what
-   AppKit actually does rather than a reading of the protocol.  Also pins the
-   remaining range corners.  Apple-only. */
+/* Apple oracle for NSSearchFieldCell and NSTextBlock.  Probes the init
+   defaults, the setter round-trips, what maximumRecents does with values out
+   of its range, and the text block's value/margin/border defaults.  Portable
+   so the same file runs under GNUstep for an A/B. */
+#ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
+#else
+#import <AppKit/AppKit.h>
+#endif
 #include <stdio.h>
 
-static NSMutableArray *calls = nil;
+#define SECTION(NAME) \
+  printf("\n== " NAME " ==\n"); \
+  @try {
 
-@interface Recorder : NSObject <NSPageControllerDelegate>
-@end
+#define ENDSECTION \
+  } @catch (NSException *e) { \
+    printf("EXCEPTION %s: %s\n", [[e name] UTF8String], \
+           [[e reason] UTF8String]); \
+  }
 
-@implementation Recorder
-
-- (NSPageControllerObjectIdentifier) pageController: (NSPageController *)pc
-                                identifierForObject: (id)object
+static const char *
+nilstr(id o)
 {
-  [calls addObject: [NSString stringWithFormat: @"identifierForObject:%@",
-    object]];
-  return [NSString stringWithFormat: @"id-%@", object];
-}
-
-- (NSViewController *) pageController: (NSPageController *)pc
-          viewControllerForIdentifier: (NSPageControllerObjectIdentifier)ident
-{
-  NSViewController *vc = [[NSViewController alloc] init];
-
-  [calls addObject: [NSString stringWithFormat: @"viewControllerForIdentifier:%@",
-    ident]];
-  [vc setView: [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 10, 10)]];
-  return vc;
-}
-
-- (void) pageController: (NSPageController *)pc
-  prepareViewController: (NSViewController *)vc
-             withObject: (id)object
-{
-  [calls addObject: [NSString stringWithFormat: @"prepare:withObject:%@",
-    object]];
-}
-
-- (void) pageController: (NSPageController *)pc
-  didTransitionToObject: (id)object
-{
-  [calls addObject: [NSString stringWithFormat: @"didTransitionToObject:%@ (%@)",
-    object, NSStringFromClass([object class])]];
-}
-
-- (NSRect) pageController: (NSPageController *)pc frameForObject: (id)object
-{
-  [calls addObject: [NSString stringWithFormat: @"frameForObject:%@ (%@)",
-    object, NSStringFromClass([object class])]];
-  return NSMakeRect(0, 0, 50, 50);
-}
-
-- (void) pageControllerWillStartLiveTransition: (NSPageController *)pc
-{
-  [calls addObject: @"willStartLiveTransition"];
-}
-
-- (void) pageControllerDidEndLiveTransition: (NSPageController *)pc
-{
-  [calls addObject: @"didEndLiveTransition"];
-}
-@end
-
-static void
-dumpCalls(const char *tag)
-{
-  NSUInteger i;
-
-  printf("%s calls=%lu\n", tag, (unsigned long)[calls count]);
-  for (i = 0; i < [calls count]; i++)
-    {
-      printf("   %lu. %s\n", (unsigned long)i + 1,
-             [[calls objectAtIndex: i] UTF8String]);
-    }
-  [calls removeAllObjects];
+  return o == nil ? "nil" : "set";
 }
 
 int
@@ -85,87 +32,126 @@ main(int argc, const char **argv)
   @autoreleasepool
   {
     [NSApplication sharedApplication];
-    calls = [[NSMutableArray alloc] init];
 
-    printf("== what AppKit calls on setSelectedIndex: ==\n");
-    {
-      NSPageController *p = [[NSPageController alloc] init];
-      Recorder *r = [[Recorder alloc] init];
+    SECTION("NSSearchFieldCell init defaults")
+    NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"find"];
 
-      [p setDelegate: r];
-      [p setArrangedObjects: [NSArray arrayWithObjects: @"a", @"b", @"c", nil]];
-      dumpCalls("AFTER-setArrangedObjects");
+    printf("INIT maximumRecents=%ld sendsWholeSearchString=%d\n",
+           (long)[c maximumRecents], [c sendsWholeSearchString]);
+    printf("INIT sendsSearchStringImmediately=%d\n",
+           [c sendsSearchStringImmediately]);
+    printf("INIT recentSearches=%s count=%lu\n",
+           nilstr([c recentSearches]),
+           (unsigned long)[[c recentSearches] count]);
+    printf("INIT recentsAutosaveName=%s searchMenuTemplate=%s\n",
+           nilstr([c recentsAutosaveName]), nilstr([c searchMenuTemplate]));
+    printf("INIT cancelButtonCell=%s searchButtonCell=%s\n",
+           nilstr([c cancelButtonCell]), nilstr([c searchButtonCell]));
+    ENDSECTION
 
-      [p setSelectedIndex: 2];
-      dumpCalls("AFTER-setSelectedIndex:2");
-      printf("   -> selectedIndex=%ld selectedViewController=%s\n",
-             (long)[p selectedIndex],
-             [p selectedViewController] == nil ? "nil"
-               : [NSStringFromClass([[p selectedViewController] class]) UTF8String]);
-    }
+    SECTION("maximumRecents out of range")
+    NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"find"];
+    NSInteger values[] = { -5, -1, 0, 1, 5, 254, 255, 1000 };
+    int i;
 
-    printf("\n== navigateForwardToObject: ==\n");
-    {
-      NSPageController *p = [[NSPageController alloc] init];
-      Recorder *r = [[Recorder alloc] init];
+    for (i = 0; i < 8; i++)
+      {
+        [c setMaximumRecents: values[i]];
+        printf("SET %-5ld -> %ld\n", (long)values[i], (long)[c maximumRecents]);
+      }
+    ENDSECTION
 
-      [p setDelegate: r];
-      [p setArrangedObjects: [NSArray arrayWithObjects: @"a", @"b", nil]];
-      [calls removeAllObjects];
-      [p navigateForwardToObject: @"b"];
-      dumpCalls("AFTER-navigateForwardToObject:b");
-      printf("   -> selectedIndex=%ld arrangedCount=%lu\n",
-             (long)[p selectedIndex],
-             (unsigned long)[[p arrangedObjects] count]);
-    }
+    SECTION("NSSearchFieldCell round trips")
+    NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"find"];
+    NSArray *searches = [NSArray arrayWithObjects: @"one", @"two", nil];
+    NSMenu *menu = [[NSMenu alloc] initWithTitle: @"m"];
 
-    printf("\n== range corners ==\n");
-    {
-      NSPageController *p = [[NSPageController alloc] init];
+    [c setSendsWholeSearchString: YES];
+    [c setSendsSearchStringImmediately: YES];
+    [c setRecentSearches: searches];
+    [c setRecentsAutosaveName: @"saved"];
+    [c setSearchMenuTemplate: menu];
+    printf("SET whole=%d immediate=%d autosave=%s menuSame=%d\n",
+           [c sendsWholeSearchString], [c sendsSearchStringImmediately],
+           [[c recentsAutosaveName] UTF8String],
+           [c searchMenuTemplate] == menu);
+    printf("SET recentCount=%lu equal=%d same=%d\n",
+           (unsigned long)[[c recentSearches] count],
+           [[c recentSearches] isEqualToArray: searches],
+           [c recentSearches] == searches);
+    ENDSECTION
 
-      @try { [p setSelectedIndex: 5];
-        printf("EMPTY-idx5 ok selectedIndex=%ld\n", (long)[p selectedIndex]); }
-      @catch (NSException *e) { printf("EMPTY-idx5 raised %s\n",
-        [[e name] UTF8String]); }
-    }
-    {
-      NSPageController *p = [[NSPageController alloc] init];
+    SECTION("recentSearches past maximumRecents")
+    NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"find"];
+    NSArray *many = [NSArray arrayWithObjects: @"1", @"2", @"3", @"4", @"5",
+      nil];
 
-      @try { [p setSelectedIndex: -1];
-        printf("EMPTY-idxneg1 ok selectedIndex=%ld\n", (long)[p selectedIndex]); }
-      @catch (NSException *e) { printf("EMPTY-idxneg1 raised %s\n",
-        [[e name] UTF8String]); }
-    }
-    {
-      NSPageController *p = [[NSPageController alloc] init];
+    [c setMaximumRecents: 3];
+    [c setRecentSearches: many];
+    printf("TRUNCATE max=3 given=5 -> count=%lu\n",
+           (unsigned long)[[c recentSearches] count]);
+    ENDSECTION
 
-      [p setArrangedObjects: [NSArray arrayWithObjects: @"a", @"b", @"c", nil]];
-      @try { [p setSelectedIndex: 3];
-        printf("THREE-idx3 ok selectedIndex=%ld\n", (long)[p selectedIndex]); }
-      @catch (NSException *e) { printf("THREE-idx3 raised %s\n",
-        [[e name] UTF8String]); }
-    }
-    {
-      NSPageController *p = [[NSPageController alloc] init];
+    SECTION("NSTextBlockValueType enum")
+    printf("VALUETYPE absolute=%ld percentage=%ld\n",
+           (long)NSTextBlockAbsoluteValueType,
+           (long)NSTextBlockPercentageValueType);
+    printf("DIMENSION width=%ld minWidth=%ld maxWidth=%ld height=%ld\n",
+           (long)NSTextBlockWidth, (long)NSTextBlockMinimumWidth,
+           (long)NSTextBlockMaximumWidth, (long)NSTextBlockHeight);
+    printf("LAYER padding=%ld border=%ld margin=%ld\n",
+           (long)NSTextBlockPadding, (long)NSTextBlockBorder,
+           (long)NSTextBlockMargin);
+    ENDSECTION
 
-      [p setArrangedObjects: [NSArray arrayWithObjects: @"a", @"b", @"c", nil]];
-      @try { [p setSelectedIndex: -1];
-        printf("THREE-idxneg1 ok selectedIndex=%ld\n", (long)[p selectedIndex]); }
-      @catch (NSException *e) { printf("THREE-idxneg1 raised %s\n",
-        [[e name] UTF8String]); }
-    }
+    SECTION("NSTextBlock init defaults")
+    NSTextBlock *b = [[NSTextBlock alloc] init];
 
-    printf("\n== no delegate, with objects ==\n");
-    {
-      NSPageController *p = [[NSPageController alloc] init];
+    printf("INIT contentWidth=%g type=%ld\n",
+           (double)[b contentWidth], (long)[b contentWidthValueType]);
+    printf("INIT backgroundColor=%s\n", nilstr([b backgroundColor]));
+    printf("INIT verticalAlignment=%ld\n", (long)[b verticalAlignment]);
+    printf("INIT widthTop=%g widthLeft=%g (border layer)\n",
+           (double)[b widthForLayer: NSTextBlockBorder edge: NSMinYEdge],
+           (double)[b widthForLayer: NSTextBlockBorder edge: NSMinXEdge]);
+    printf("INIT borderColorTop=%s\n",
+           nilstr([b borderColorForEdge: NSMinYEdge]));
+    ENDSECTION
 
-      [p setArrangedObjects: [NSArray arrayWithObjects: @"a", @"b", nil]];
-      [p setSelectedIndex: 1];
-      printf("NODELEGATE selectedIndex=%ld selectedViewController=%s view=%s\n",
-             (long)[p selectedIndex],
-             [p selectedViewController] == nil ? "nil" : "set",
-             [p view] == nil ? "nil" : "set");
-    }
+    SECTION("NSTextBlock round trips")
+    NSTextBlock *b = [[NSTextBlock alloc] init];
+    NSColor *red = [NSColor redColor];
+
+    [b setContentWidth: 50.0 type: NSTextBlockAbsoluteValueType];
+    printf("SET contentWidth=%g type=%ld\n",
+           (double)[b contentWidth], (long)[b contentWidthValueType]);
+
+    [b setBackgroundColor: red];
+    printf("SET backgroundColorSame=%d\n", [b backgroundColor] == red);
+
+    [b setWidth: 3.0 type: NSTextBlockAbsoluteValueType
+      forLayer: NSTextBlockBorder];
+    printf("SET borderWidthTop=%g type=%ld\n",
+           (double)[b widthForLayer: NSTextBlockBorder edge: NSMinYEdge],
+           (long)[b widthValueTypeForLayer: NSTextBlockBorder
+                                      edge: NSMinYEdge]);
+
+    [b setWidth: 7.0 type: NSTextBlockAbsoluteValueType
+      forLayer: NSTextBlockMargin edge: NSMaxXEdge];
+    printf("SET marginRight=%g marginLeftUnset=%g\n",
+           (double)[b widthForLayer: NSTextBlockMargin edge: NSMaxXEdge],
+           (double)[b widthForLayer: NSTextBlockMargin edge: NSMinXEdge]);
+
+    [b setBorderColor: red forEdge: NSMinYEdge];
+    printf("SET borderColorTopSame=%d borderColorBottom=%s\n",
+           [b borderColorForEdge: NSMinYEdge] == red,
+           nilstr([b borderColorForEdge: NSMaxYEdge]));
+
+    [b setBorderColor: [NSColor blueColor]];
+    printf("SET allEdgesBlue top=%d bottom=%d\n",
+           [b borderColorForEdge: NSMinYEdge] == [NSColor blueColor],
+           [b borderColorForEdge: NSMaxYEdge] == [NSColor blueColor]);
+    ENDSECTION
   }
   return 0;
 }
