@@ -1,13 +1,12 @@
-/* Apple oracle for NSTableRowView and NSDockTile.  Dumps the real selector
-   surface of NSTableRowView (the setter names here look wrong), its init
-   defaults and round-trips, and the dock tile the application vends.  Portable
-   so the same file runs under GNUstep for an A/B. */
+/* Apple oracle for NSTokenFieldCell and NSPageController.  Probes the
+   enumeration values, the class defaults, the init defaults, the round-trips,
+   and what a page controller does when asked to select an index it has no
+   object for.  Portable so the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
-#import <objc/runtime.h>
 #include <stdio.h>
 
 #define SECTION(NAME) \
@@ -26,14 +25,6 @@ nilstr(id o)
   return o == nil ? "nil" : "set";
 }
 
-static void
-hasSel(id o, const char *name)
-{
-  SEL s = NSSelectorFromString([NSString stringWithUTF8String: name]);
-
-  printf("  HAS %-46s %d\n", name, [o respondsToSelector: s]);
-}
-
 int
 main(int argc, const char **argv)
 {
@@ -42,116 +33,123 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    SECTION("NSTableRowView selectors")
-    NSTableRowView *v = [[NSTableRowView alloc] initWithFrame:
-      NSMakeRect(0, 0, 100, 20)];
-
-    hasSel(v, "isEmphasized");
-    hasSel(v, "setEmphasized:");
-    hasSel(v, "interiorBackgroundStyle");
-    hasSel(v, "isFloating");
-    hasSel(v, "setFloating:");
-    hasSel(v, "isSelected");
-    hasSel(v, "setSelected:");
-    hasSel(v, "selectionHighlightStyle");
-    hasSel(v, "setSelectionHighlightStyle:");
-    hasSel(v, "draggingDestinationFeedbackStyle");
-    hasSel(v, "setDraggingDestinationFeedbackStyle:");
-    hasSel(v, "setTableViewDraggingDestinationFeedbackStyle:");
-    hasSel(v, "indentationForDropOperation");
-    hasSel(v, "setIndentationForDropOperation:");
-    hasSel(v, "isTargetForDropOperation");
-    hasSel(v, "targetForDropOperation");
-    hasSel(v, "setTargetForDropOperation:");
-    hasSel(v, "isGroupRowStyle");
-    hasSel(v, "groupRowStyle");
-    hasSel(v, "setGroupRowStyle:");
-    hasSel(v, "numberOfColumns");
-    hasSel(v, "backgroundColor");
-    hasSel(v, "setBackgroundColor:");
-    hasSel(v, "isNextRowSelected");
-    hasSel(v, "setNextRowSelected:");
-    hasSel(v, "isPreviousRowSelected");
-    hasSel(v, "setPreviousRowSelected:");
-    hasSel(v, "viewAtColumn:");
+    SECTION("NSTokenStyle enum")
+    printf("TOKENSTYLE default=%ld plainText=%ld rounded=%ld\n",
+           (long)NSDefaultTokenStyle, (long)NSPlainTextTokenStyle,
+           (long)NSRoundedTokenStyle);
     ENDSECTION
 
-    SECTION("NSTableRowView defaults")
-    NSTableRowView *v = [[NSTableRowView alloc] initWithFrame:
-      NSMakeRect(0, 0, 100, 20)];
+    SECTION("NSTokenFieldCell class defaults")
+    NSCharacterSet *set = [NSTokenFieldCell defaultTokenizingCharacterSet];
 
-    printf("INIT emphasized=%d floating=%d selected=%d\n",
-           [v isEmphasized], [v isFloating], [v isSelected]);
-    printf("INIT selectionHighlightStyle=%ld interiorBackgroundStyle=%ld\n",
-           (long)[v selectionHighlightStyle], (long)[v interiorBackgroundStyle]);
-    printf("INIT draggingDestinationFeedbackStyle=%ld indentation=%g\n",
-           (long)[v draggingDestinationFeedbackStyle],
-           (double)[v indentationForDropOperation]);
-    printf("INIT numberOfColumns=%ld backgroundColor=%s\n",
-           (long)[v numberOfColumns], nilstr([v backgroundColor]));
-    printf("INIT nextRowSelected=%d previousRowSelected=%d\n",
-           [v isNextRowSelected], [v isPreviousRowSelected]);
+    printf("CLASS defaultCompletionDelay=%g\n",
+           (double)[NSTokenFieldCell defaultCompletionDelay]);
+    printf("CLASS defaultTokenizingCharacterSet=%s hasComma=%d hasSemi=%d\n",
+           nilstr(set),
+           set == nil ? -1 : [set characterIsMember: ','],
+           set == nil ? -1 : [set characterIsMember: ';']);
     ENDSECTION
 
-    SECTION("NSTableRowView round trips")
-    NSTableRowView *v = [[NSTableRowView alloc] initWithFrame:
-      NSMakeRect(0, 0, 100, 20)];
-    NSColor *c = [NSColor redColor];
+    SECTION("NSTokenFieldCell init defaults")
+    NSTokenFieldCell *c = [[NSTokenFieldCell alloc] initTextCell: @"x"];
+    NSCharacterSet *set = [c tokenizingCharacterSet];
 
-    [v setEmphasized: YES];
-    [v setFloating: YES];
-    [v setSelected: YES];
-    [v setGroupRowStyle: YES];
-    [v setNextRowSelected: YES];
-    [v setPreviousRowSelected: YES];
-    [v setIndentationForDropOperation: 12.5];
-    [v setBackgroundColor: c];
-    [v setSelectionHighlightStyle: NSTableViewSelectionHighlightStyleSourceList];
-    printf("SET emphasized=%d floating=%d selected=%d next=%d prev=%d\n",
-           [v isEmphasized], [v isFloating], [v isSelected],
-           [v isNextRowSelected], [v isPreviousRowSelected]);
-    printf("SET indentation=%g backgroundColorSame=%d highlightStyle=%ld\n",
-           (double)[v indentationForDropOperation], [v backgroundColor] == c,
-           (long)[v selectionHighlightStyle]);
+    printf("INIT tokenStyle=%ld completionDelay=%g\n",
+           (long)[c tokenStyle], (double)[c completionDelay]);
+    printf("INIT tokenizingCharacterSet=%s hasComma=%d\n",
+           nilstr(set), set == nil ? -1 : [set characterIsMember: ',']);
     ENDSECTION
 
-    SECTION("NSTableViewSelectionHighlightStyle enum")
-    printf("HIGHLIGHT none=%ld regular=%ld sourceList=%ld\n",
-           (long)NSTableViewSelectionHighlightStyleNone,
-           (long)NSTableViewSelectionHighlightStyleRegular,
-           (long)NSTableViewSelectionHighlightStyleSourceList);
+    SECTION("NSTokenFieldCell round trips")
+    NSTokenFieldCell *c = [[NSTokenFieldCell alloc] initTextCell: @"x"];
+    NSCharacterSet *semi = [NSCharacterSet characterSetWithCharactersInString:
+      @";"];
+
+    [c setTokenStyle: NSRoundedTokenStyle];
+    [c setCompletionDelay: 2.5];
+    [c setTokenizingCharacterSet: semi];
+    printf("SET tokenStyle=%ld completionDelay=%g setSame=%d\n",
+           (long)[c tokenStyle], (double)[c completionDelay],
+           [c tokenizingCharacterSet] == semi);
     ENDSECTION
 
-    SECTION("the application dock tile")
-    NSDockTile *t = [NSApp dockTile];
-
-    printf("APPTILE nonnil=%d contentView=%s size=%gx%g\n",
-           t != nil, nilstr([t contentView]),
-           (double)[t size].width, (double)[t size].height);
-    printf("APPTILE badgeLabel=%s showsApplicationBadge=%d owner=%s\n",
-           nilstr([t badgeLabel]), [t showsApplicationBadge],
-           nilstr([t owner]));
+    SECTION("NSPageControllerTransitionStyle enum")
+    printf("TRANSITION stackHistory=%ld stackBook=%ld horizontalStrip=%ld\n",
+           (long)NSPageControllerTransitionStyleStackHistory,
+           (long)NSPageControllerTransitionStyleStackBook,
+           (long)NSPageControllerTransitionStyleHorizontalStrip);
     ENDSECTION
 
-    SECTION("dock tile round trips")
-    NSDockTile *t = [NSApp dockTile];
-    NSView *v = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 10, 10)];
+    SECTION("NSPageController init defaults")
+    NSPageController *p = [[NSPageController alloc] init];
 
-    [t setBadgeLabel: @"7"];
-    printf("SET badgeLabel=%s\n", [[t badgeLabel] UTF8String]);
-    [t setShowsApplicationBadge: NO];
-    printf("SET showsApplicationBadge=%d\n", [t showsApplicationBadge]);
-    [t setContentView: v];
-    printf("SET contentViewSame=%d\n", [t contentView] == v);
+    printf("INIT transitionStyle=%ld delegate=%s\n",
+           (long)[p transitionStyle], nilstr([p delegate]));
+    printf("INIT arrangedObjects=%s count=%lu selectedIndex=%ld\n",
+           nilstr([p arrangedObjects]),
+           (unsigned long)[[p arrangedObjects] count],
+           (long)[p selectedIndex]);
+    printf("INIT selectedViewController=%s\n",
+           nilstr([p selectedViewController]));
     ENDSECTION
 
-    SECTION("allocating a dock tile directly")
-    NSDockTile *t = [[NSDockTile alloc] init];
+    SECTION("NSPageController round trips")
+    NSPageController *p = [[NSPageController alloc] init];
+    NSArray *objects = [NSArray arrayWithObjects: @"a", @"b", @"c", nil];
 
-    printf("ALLOC nonnil=%d contentView=%s size=%gx%g badge=%d\n",
-           t != nil, nilstr([t contentView]),
-           (double)[t size].width, (double)[t size].height,
-           [t showsApplicationBadge]);
+    [p setTransitionStyle: NSPageControllerTransitionStyleHorizontalStrip];
+    printf("SET transitionStyle=%ld\n", (long)[p transitionStyle]);
+
+    [p setArrangedObjects: objects];
+    printf("SET arrangedCount=%lu equal=%d same=%d\n",
+           (unsigned long)[[p arrangedObjects] count],
+           [[p arrangedObjects] isEqualToArray: objects],
+           [p arrangedObjects] == objects);
+    printf("SET selectedIndexAfterArranged=%ld\n", (long)[p selectedIndex]);
+    ENDSECTION
+
+    SECTION("NSPageController selecting with objects")
+    NSPageController *p = [[NSPageController alloc] init];
+    NSArray *objects = [NSArray arrayWithObjects: @"a", @"b", @"c", nil];
+
+    [p setArrangedObjects: objects];
+    [p setSelectedIndex: 2];
+    printf("SEL2 selectedIndex=%ld selectedViewController=%s\n",
+           (long)[p selectedIndex], nilstr([p selectedViewController]));
+    ENDSECTION
+
+    SECTION("NSPageController selecting with no objects")
+    NSPageController *p = [[NSPageController alloc] init];
+
+    @try {
+      [p setSelectedIndex: 0];
+      printf("EMPTY-SEL0 ok selectedIndex=%ld\n", (long)[p selectedIndex]);
+    } @catch (NSException *e) {
+      printf("EMPTY-SEL0 raised %s\n", [[e name] UTF8String]);
+    }
+    ENDSECTION
+
+    SECTION("NSPageController selecting out of range")
+    NSPageController *p = [[NSPageController alloc] init];
+
+    [p setArrangedObjects: [NSArray arrayWithObject: @"a"]];
+    @try {
+      [p setSelectedIndex: 9];
+      printf("OUT-OF-RANGE ok selectedIndex=%ld\n", (long)[p selectedIndex]);
+    } @catch (NSException *e) {
+      printf("OUT-OF-RANGE raised %s\n", [[e name] UTF8String]);
+    }
+    ENDSECTION
+
+    SECTION("NSPageController navigateBack on an empty controller")
+    NSPageController *p = [[NSPageController alloc] init];
+
+    @try {
+      [p navigateBack: nil];
+      printf("EMPTY-BACK ok selectedIndex=%ld\n", (long)[p selectedIndex]);
+    } @catch (NSException *e) {
+      printf("EMPTY-BACK raised %s\n", [[e name] UTF8String]);
+    }
     ENDSECTION
   }
   return 0;
