@@ -1,9 +1,12 @@
-/* Apple oracle for NSSharingServicePickerToolbarItem (a stub here: the getters
-   answer nil and the setters do nothing) and for whether AppKit still has
-   NSNibConnector at all, which decides whether that class can be compared
-   against anything.  Apple-only. */
+/* Apple oracle, pass 2: NSNibConnector's semantics (AppKit does still have the
+   class) and NSSharingServicePickerToolbarItem's delegate.  Portable so the
+   same file runs under GNUstep for an A/B.  activityItemsConfiguration is left
+   out: AppKit has no such selector, so there is nothing to compare. */
+#ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
-#import <objc/runtime.h>
+#else
+#import <AppKit/AppKit.h>
+#endif
 #include <stdio.h>
 
 #define SECTION(NAME) \
@@ -16,14 +19,22 @@
            [[e reason] UTF8String]); \
   }
 
-@interface PickerDelegate : NSObject <NSSharingServicePickerToolbarItemDelegate>
-@end
-@implementation PickerDelegate
-- (NSArray *) itemsForSharingServicePickerToolbarItem:
-  (NSSharingServicePickerToolbarItem *)item
+static const char *
+nilstr(id o)
 {
-  return [NSArray arrayWithObject: @"item"];
+  return o == nil ? "nil" : "set";
 }
+
+/* Declared so this builds on both sides. */
+@interface NSNibConnector (Probe)
+- (id) source;
+- (void) setSource: (id)o;
+- (id) destination;
+- (void) setDestination: (id)o;
+- (NSString *) label;
+- (void) setLabel: (NSString *)l;
+- (void) establishConnection;
+- (void) replaceObject: (id)a withObject: (id)b;
 @end
 
 int
@@ -34,76 +45,85 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    SECTION("NSNibConnector: does AppKit have it?")
-    Class c = NSClassFromString(@"NSNibConnector");
+    SECTION("NSNibConnector defaults")
+    NSNibConnector *c = [[NSNibConnector alloc] init];
 
-    printf("NSNibConnector class=%s\n", c == Nil ? "ABSENT" : "present");
-    if (c != Nil)
-      {
-        id conn = [[c alloc] init];
-        const char *sels[] = { "source", "setSource:", "destination",
-                               "setDestination:", "label", "setLabel:",
-                               "establishConnection",
-                               "replaceObject:withObject:", NULL };
-        int i;
-
-        printf("NSNibConnector init nonnil=%d\n", conn != nil);
-        for (i = 0; sels[i] != NULL; i++)
-          {
-            SEL s = NSSelectorFromString([NSString stringWithUTF8String:
-              sels[i]]);
-
-            printf("  HAS %-28s %d\n", sels[i], [conn respondsToSelector: s]);
-          }
-      }
+    printf("INIT nonnil=%d source=%s destination=%s label=%s\n",
+           c != nil, nilstr([c source]), nilstr([c destination]),
+           nilstr([c label]));
     ENDSECTION
 
-    SECTION("NSSharingServicePickerToolbarItem defaults")
+    SECTION("NSNibConnector round trips")
+    NSNibConnector *c = [[NSNibConnector alloc] init];
+    NSString *src = @"theSource";
+    NSString *dst = @"theDestination";
+
+    [c setSource: src];
+    [c setDestination: dst];
+    [c setLabel: @"theLabel"];
+    printf("SET sourceSame=%d destinationSame=%d label=%s\n",
+           [c source] == src, [c destination] == dst,
+           [[c label] UTF8String]);
+
+    [c setSource: nil];
+    [c setLabel: nil];
+    printf("SETNIL source=%s label=%s\n", nilstr([c source]),
+           nilstr([c label]));
+    ENDSECTION
+
+    SECTION("NSNibConnector replaceObject:withObject:")
+    NSNibConnector *c = [[NSNibConnector alloc] init];
+    NSString *a = @"objectA";
+    NSString *b = @"objectB";
+
+    [c setSource: a];
+    [c setDestination: a];
+    [c replaceObject: a withObject: b];
+    printf("REPLACE source=%s destination=%s\n",
+           [[c source] UTF8String], [[c destination] UTF8String]);
+
+    /* replacing something it does not hold changes nothing */
+    [c replaceObject: @"notHeld" withObject: @"other"];
+    printf("REPLACE-MISS source=%s destination=%s\n",
+           [[c source] UTF8String], [[c destination] UTF8String]);
+    ENDSECTION
+
+    SECTION("NSNibConnector isEqual")
+    NSNibConnector *x = [[NSNibConnector alloc] init];
+    NSNibConnector *y = [[NSNibConnector alloc] init];
+
+    printf("EMPTY selfEqual=%d twoEmptyEqual=%d\n",
+           [x isEqual: x], [x isEqual: y]);
+
+    [x setSource: @"s"]; [x setDestination: @"d"]; [x setLabel: @"l"];
+    [y setSource: @"s"]; [y setDestination: @"d"]; [y setLabel: @"l"];
+    printf("SAMEVALUES equal=%d\n", [x isEqual: y]);
+
+    [y setLabel: @"different"];
+    printf("DIFFERENTLABEL equal=%d\n", [x isEqual: y]);
+    ENDSECTION
+
+    SECTION("NSNibConnector establishConnection")
+    NSNibConnector *c = [[NSNibConnector alloc] init];
+
+    @try { [c establishConnection]; printf("ESTABLISH ok on an empty one\n"); }
+    @catch (NSException *e) { printf("ESTABLISH raised %s\n",
+      [[e name] UTF8String]); }
+    ENDSECTION
+
+    SECTION("NSSharingServicePickerToolbarItem delegate")
     NSSharingServicePickerToolbarItem *item;
+    id d = [[NSObject alloc] init];
 
     item = [[NSSharingServicePickerToolbarItem alloc]
       initWithItemIdentifier: @"share"];
-    printf("INIT nonnil=%d identifier=%s\n", item != nil,
-           [[item itemIdentifier] UTF8String]);
-    printf("INIT delegate=%s activityItemsConfiguration=%s\n",
-           [item delegate] == nil ? "nil" : "set",
-           [item activityItemsConfiguration] == nil ? "nil" : "set");
-    ENDSECTION
+    printf("INIT nonnil=%d delegate=%s\n", item != nil, nilstr([item delegate]));
 
-    SECTION("NSSharingServicePickerToolbarItem round trips")
-    NSSharingServicePickerToolbarItem *item;
-    PickerDelegate *d = [[PickerDelegate alloc] init];
-
-    item = [[NSSharingServicePickerToolbarItem alloc]
-      initWithItemIdentifier: @"share"];
-    [item setDelegate: d];
+    [item setDelegate: (id)d];
     printf("SET delegateSame=%d\n", [item delegate] == d);
 
-    /* the configuration is any object, so a string will do to see whether it
-       is kept */
-    [item setActivityItemsConfiguration: (id)@"config"];
-    printf("SET configSame=%d config=%s\n",
-           [item activityItemsConfiguration] == (id)@"config",
-           [item activityItemsConfiguration] == nil ? "nil"
-             : [[[item activityItemsConfiguration] description] UTF8String]);
-
     [item setDelegate: nil];
-    printf("SET delegateNil=%s\n", [item delegate] == nil ? "nil" : "set");
-    ENDSECTION
-
-    SECTION("is the delegate retained?")
-    NSSharingServicePickerToolbarItem *item;
-    PickerDelegate *d = [[PickerDelegate alloc] init];
-    NSUInteger before;
-    NSUInteger after;
-
-    item = [[NSSharingServicePickerToolbarItem alloc]
-      initWithItemIdentifier: @"share"];
-    before = [d retainCount];
-    [item setDelegate: d];
-    after = [d retainCount];
-    printf("DELEGATE retainCount before=%lu after=%lu (weak if unchanged)\n",
-           (unsigned long)before, (unsigned long)after);
+    printf("SETNIL delegate=%s\n", nilstr([item delegate]));
     ENDSECTION
   }
   return 0;
