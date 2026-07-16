@@ -1,11 +1,9 @@
-/* Apple oracle, pass 3 for NSToolbarItemGroup.  Pass 2 showed the selection API
-   is inert on a bare programmatically-built group (selectedIndex stays -1 in
-   every mode).  This pass dumps the real method surface from the runtime and
-   retries selection with view-backed subitems and with the group installed in a
-   real toolbar on a window, to find out where the selection state actually
-   lives.  Apple-only. */
+/* Apple oracle, pass 4 for NSToolbarItemGroup.  Pass 3 found the real factory
+   names (singular target:/action:) and the internal _buttonAtIndex:/_viewsArray
+   methods, which suggests selection state lives in the buttons the factory
+   builds.  This pass drives selection through a factory-built group in every
+   selection mode.  Apple-only. */
 #import <Cocoa/Cocoa.h>
-#import <objc/runtime.h>
 #include <stdio.h>
 
 #define SECTION(NAME) \
@@ -18,56 +16,20 @@
            [[e reason] UTF8String]); \
   }
 
-static void
-dumpMethods(Class c, const char *tag)
-{
-  unsigned int n = 0;
-  Method *list = class_copyMethodList(c, &n);
-  unsigned int i;
-  NSMutableArray *names = [NSMutableArray array];
-
-  for (i = 0; i < n; i++)
-    {
-      [names addObject: NSStringFromSelector(method_getName(list[i]))];
-    }
-  free(list);
-  [names sortUsingSelector: @selector(compare:)];
-  printf("%s (%u):\n", tag, n);
-  for (NSString *s in names)
-    {
-      printf("  %s\n", [s UTF8String]);
-    }
-}
-
-static NSToolbarItemGroup *
-makeGroup(NSToolbarItemGroupSelectionMode mode, BOOL withViews)
-{
-  NSToolbarItemGroup *g;
-  NSMutableArray *subs = [NSMutableArray array];
-  int i;
-
-  g = [[NSToolbarItemGroup alloc] initWithItemIdentifier: @"grp"];
-  for (i = 0; i < 3; i++)
-    {
-      NSToolbarItem *it = [[NSToolbarItem alloc] initWithItemIdentifier:
-        [NSString stringWithFormat: @"i%d", i]];
-
-      if (withViews)
-        {
-          NSButton *b = [[NSButton alloc] initWithFrame:
-            NSMakeRect(0, 0, 40, 24)];
-
-          [b setButtonType: NSButtonTypePushOnPushOff];
-          [b setTitle: [NSString stringWithFormat: @"b%d", i]];
-          [it setView: b];
-        }
-      [it setLabel: [NSString stringWithFormat: @"L%d", i]];
-      [subs addObject: it];
-    }
-  [g setSubitems: subs];
-  [g setSelectionMode: mode];
-  return g;
-}
+@interface NSToolbarItemGroup (Probe)
++ (id) groupWithItemIdentifier: (NSString *)identifier
+                        titles: (NSArray *)titles
+                 selectionMode: (NSToolbarItemGroupSelectionMode)mode
+                        labels: (NSArray *)labels
+                        target: (id)target
+                        action: (SEL)action;
++ (id) groupWithItemIdentifier: (NSString *)identifier
+                        images: (NSArray *)images
+                 selectionMode: (NSToolbarItemGroupSelectionMode)mode
+                        labels: (NSArray *)labels
+                        target: (id)target
+                        action: (SEL)action;
+@end
 
 static void
 dumpSelection(NSToolbarItemGroup *g, const char *tag)
@@ -83,6 +45,20 @@ dumpSelection(NSToolbarItemGroup *g, const char *tag)
   printf("]\n");
 }
 
+static NSToolbarItemGroup *
+factoryGroup(NSToolbarItemGroupSelectionMode mode)
+{
+  NSArray *titles = [NSArray arrayWithObjects: @"T0", @"T1", @"T2", nil];
+  NSArray *labels = [NSArray arrayWithObjects: @"L0", @"L1", @"L2", nil];
+
+  return [NSToolbarItemGroup groupWithItemIdentifier: @"grp"
+                                              titles: titles
+                                       selectionMode: mode
+                                              labels: labels
+                                              target: nil
+                                              action: NULL];
+}
+
 int
 main(int argc, const char **argv)
 {
@@ -91,70 +67,124 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    SECTION("method surface")
-    dumpMethods(objc_getMetaClass("NSToolbarItemGroup"), "CLASS METHODS");
-    dumpMethods([NSToolbarItemGroup class], "INSTANCE METHODS");
-    ENDSECTION
+    SECTION("factory shape")
+    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectOne);
+    NSUInteger i;
 
-    SECTION("factory name hunt")
-    const char *cands[] = {
-      "groupWithItemIdentifier:titles:selectionMode:labels:targets:actions:",
-      "groupWithItemIdentifier:images:selectionMode:labels:targets:actions:",
-      NULL };
-    int i;
-
-    for (i = 0; cands[i] != NULL; i++)
+    printf("FACTORY nonnil=%d class=%s identifier=%s subcount=%lu\n",
+           g != nil, [NSStringFromClass([g class]) UTF8String],
+           [[g itemIdentifier] UTF8String],
+           (unsigned long)[[g subitems] count]);
+    printf("FACTORY selMode=%ld selIdx=%ld ctlRep=%ld isGroupItem=%d\n",
+           (long)[g selectionMode], (long)[g selectedIndex],
+           (long)[g controlRepresentation], [g isGroupItem]);
+    printf("FACTORY groupView=%s\n",
+           [g view] == nil ? "nil"
+             : [NSStringFromClass([[g view] class]) UTF8String]);
+    for (i = 0; i < [[g subitems] count]; i++)
       {
-        SEL s = NSSelectorFromString([NSString stringWithUTF8String: cands[i]]);
+        NSToolbarItem *it = [[g subitems] objectAtIndex: i];
 
-        printf("CLASS RESPONDS %-64s %d\n", cands[i],
-               [NSToolbarItemGroup respondsToSelector: s]);
+        printf("SUB%lu class=%s identifier=%s label=%s view=%s\n",
+               (unsigned long)i, [NSStringFromClass([it class]) UTF8String],
+               [[it itemIdentifier] UTF8String], [[it label] UTF8String],
+               [it view] == nil ? "nil"
+                 : [NSStringFromClass([[it view] class]) UTF8String]);
       }
     ENDSECTION
 
-    SECTION("selection with view-backed subitems")
-    NSToolbarItemGroup *g = makeGroup(NSToolbarItemGroupSelectionModeSelectOne,
-                                      YES);
+    SECTION("factory SelectOne")
+    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectOne);
 
     dumpSelection(g, "FRESH");
+    [g setSelected: YES atIndex: 0];
+    dumpSelection(g, "SEL0");
+    [g setSelected: YES atIndex: 2];
+    dumpSelection(g, "SEL2");
+    [g setSelected: NO atIndex: 2];
+    dumpSelection(g, "DESEL2");
+    [g setSelectedIndex: 1];
+    dumpSelection(g, "SETIDX1");
+    ENDSECTION
+
+    SECTION("factory SelectAny")
+    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectAny);
+
+    [g setSelected: YES atIndex: 0];
+    [g setSelected: YES atIndex: 2];
+    dumpSelection(g, "SEL02");
+    [g setSelected: NO atIndex: 0];
+    dumpSelection(g, "DESEL0");
+    ENDSECTION
+
+    SECTION("factory Momentary")
+    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeMomentary);
+
     [g setSelected: YES atIndex: 1];
     dumpSelection(g, "SEL1");
-    [g setSelectedIndex: 2];
-    dumpSelection(g, "SETIDX2");
     ENDSECTION
 
-    SECTION("selection inside a real toolbar on a window")
-    NSToolbarItemGroup *g = makeGroup(NSToolbarItemGroupSelectionModeSelectOne,
-                                      YES);
-    NSWindow *w;
-    NSToolbar *tb;
+    SECTION("factory out of range")
+    NSToolbarItemGroup *g = factoryGroup(NSToolbarItemGroupSelectionModeSelectOne);
 
-    w = [[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, 400, 300)
-                                    styleMask: NSWindowStyleMaskTitled
-                                      backing: NSBackingStoreBuffered
-                                        defer: NO];
-    tb = [[NSToolbar alloc] initWithIdentifier: @"tb"];
-    [w setToolbar: tb];
-    [tb insertItemWithItemIdentifier: @"grp" atIndex: 0];
-    printf("TOOLBAR items=%lu\n", (unsigned long)[[tb items] count]);
-    dumpSelection(g, "INTOOLBAR-FRESH");
-    [g setSelected: YES atIndex: 1];
-    dumpSelection(g, "INTOOLBAR-SEL1");
+    @try { printf("ISSEL99=%d\n", [g isSelectedAtIndex: 99]); }
+    @catch (NSException *e) { printf("ISSEL99 raised %s\n",
+      [[e name] UTF8String]); }
+    @try { [g setSelected: YES atIndex: 99]; printf("SETSEL99 ok\n"); }
+    @catch (NSException *e) { printf("SETSEL99 raised %s\n",
+      [[e name] UTF8String]); }
+    @try { [g setSelectedIndex: 99]; printf("SETIDX99 ok idx=%ld\n",
+      (long)[g selectedIndex]); }
+    @catch (NSException *e) { printf("SETIDX99 raised %s\n",
+      [[e name] UTF8String]); }
     ENDSECTION
 
-    /* Does the group's own view exist, and is it a segmented control?  That is
-       where the selection would have to live. */
-    SECTION("group view")
-    NSToolbarItemGroup *g = makeGroup(NSToolbarItemGroupSelectionModeSelectOne,
-                                      NO);
+    SECTION("factory labels/titles mismatch and empties")
+    NSToolbarItemGroup *g;
 
-    printf("VIEW view=%s\n",
-           [g view] == nil ? "nil"
-             : [NSStringFromClass([[g view] class]) UTF8String]);
-    printf("VIEW subitem0 view=%s\n",
-           [[[g subitems] objectAtIndex: 0] view] == nil ? "nil"
-             : [NSStringFromClass([[[[g subitems] objectAtIndex: 0] view] class])
-                 UTF8String]);
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"g2"
+                                             titles: [NSArray array]
+                                      selectionMode:
+           NSToolbarItemGroupSelectionModeSelectOne
+                                             labels: [NSArray array]
+                                             target: nil
+                                             action: NULL];
+    printf("EMPTY nonnil=%d subcount=%lu selIdx=%ld\n",
+           g != nil, (unsigned long)[[g subitems] count], (long)[g selectedIndex]);
+
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"g3"
+                                             titles:
+           [NSArray arrayWithObjects: @"A", @"B", nil]
+                                      selectionMode:
+           NSToolbarItemGroupSelectionModeSelectOne
+                                             labels: nil
+                                             target: nil
+                                             action: NULL];
+    printf("NILLABELS nonnil=%d subcount=%lu label0=%s\n",
+           g != nil, (unsigned long)[[g subitems] count],
+           [[g subitems] count] > 0
+             ? [[[[g subitems] objectAtIndex: 0] label] UTF8String] : "-");
+    ENDSECTION
+
+    SECTION("images factory")
+    NSImage *img = [[NSImage alloc] initWithSize: NSMakeSize(16, 16)];
+    NSToolbarItemGroup *g;
+
+    g = [NSToolbarItemGroup groupWithItemIdentifier: @"g4"
+                                             images:
+           [NSArray arrayWithObjects: img, img, nil]
+                                      selectionMode:
+           NSToolbarItemGroupSelectionModeSelectAny
+                                             labels:
+           [NSArray arrayWithObjects: @"IA", @"IB", nil]
+                                             target: nil
+                                             action: NULL];
+    printf("IMAGES nonnil=%d subcount=%lu label0=%s image0=%s\n",
+           g != nil, (unsigned long)[[g subitems] count],
+           [[g subitems] count] > 0
+             ? [[[[g subitems] objectAtIndex: 0] label] UTF8String] : "-",
+           [[g subitems] count] > 0
+             && [[[g subitems] objectAtIndex: 0] image] != nil ? "set" : "nil");
     ENDSECTION
   }
   return 0;
