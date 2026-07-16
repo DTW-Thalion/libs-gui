@@ -1,27 +1,18 @@
-/* Apple oracle, pass 2 for NSAppearance.  Which named appearances allow
-   vibrancy, what the name constants are, what the current appearance is before
-   anything sets it, and how bestMatchFromAppearancesWithNames: chooses.
+/* Apple oracle, pass 3 for NSAppearance.  Pins the whole base-appearance
+   mapping that bestMatchFromAppearancesWithNames: falls back to, for every
+   named appearance, plus what -name reports for the high contrast ones.
    Apple-only. */
 #import <Cocoa/Cocoa.h>
 #include <stdio.h>
 
-#define SECTION(NAME) \
-  printf("\n== " NAME " ==\n"); \
-  @try {
-
-#define ENDSECTION \
-  } @catch (NSException *e) { \
-    printf("EXCEPTION %s: %s\n", [[e name] UTF8String], \
-           [[e reason] UTF8String]); \
-  }
-
 static void
-dumpBest(NSString *ofName, NSArray *names, const char *tag)
+dumpBest(NSString *ofName, NSArray *names, const char *listTag)
 {
   NSAppearance *a = [NSAppearance appearanceNamed: ofName];
   NSString *best = [a bestMatchFromAppearancesWithNames: names];
 
-  printf("%-46s -> %s\n", tag, best == nil ? "nil" : [best UTF8String]);
+  printf("  %-30s of %-22s -> %s\n", [[a name] UTF8String], listTag,
+         best == nil ? "nil" : [best UTF8String]);
 }
 
 int
@@ -32,8 +23,7 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    SECTION("name constants and vibrancy")
-    NSArray *names = [NSArray arrayWithObjects:
+    NSArray *all = [NSArray arrayWithObjects:
       NSAppearanceNameAqua,
       NSAppearanceNameDarkAqua,
       NSAppearanceNameVibrantLight,
@@ -43,65 +33,47 @@ main(int argc, const char **argv)
       NSAppearanceNameAccessibilityHighContrastVibrantLight,
       NSAppearanceNameAccessibilityHighContrastVibrantDark,
       nil];
-    NSUInteger i;
-
-    for (i = 0; i < [names count]; i++)
-      {
-        NSString *n = [names objectAtIndex: i];
-        NSAppearance *a = [NSAppearance appearanceNamed: n];
-
-        printf("NAME %-52s nonnil=%d nameBack=%-8s vibrancy=%d\n",
-               [n UTF8String], a != nil,
-               [[a name] isEqualToString: n] ? "same" : "DIFFERENT",
-               [a allowsVibrancy]);
-      }
-    ENDSECTION
-
-    SECTION("current appearance before anything sets it")
-    NSAppearance *cur = [NSAppearance currentAppearance];
-
-    printf("CURRENT nonnil=%d name=%s\n", cur != nil,
-           cur == nil ? "-" : [[cur name] UTF8String]);
-    ENDSECTION
-
-    SECTION("bestMatchFromAppearancesWithNames")
     NSArray *aquaDark = [NSArray arrayWithObjects: NSAppearanceNameAqua,
       NSAppearanceNameDarkAqua, nil];
-    NSArray *darkAqua = [NSArray arrayWithObjects: NSAppearanceNameDarkAqua,
-      NSAppearanceNameAqua, nil];
-    NSArray *onlyDark = [NSArray arrayWithObject: NSAppearanceNameDarkAqua];
-    NSArray *onlyVibrantLight = [NSArray arrayWithObject:
-      NSAppearanceNameVibrantLight];
-    NSArray *vibrantThenAqua = [NSArray arrayWithObjects:
-      NSAppearanceNameVibrantLight, NSAppearanceNameAqua, nil];
+    NSUInteger i;
 
-    dumpBest(NSAppearanceNameAqua, aquaDark, "aqua of [aqua, darkAqua]");
-    dumpBest(NSAppearanceNameAqua, darkAqua, "aqua of [darkAqua, aqua]");
-    dumpBest(NSAppearanceNameAqua, onlyDark, "aqua of [darkAqua]");
-    dumpBest(NSAppearanceNameAqua, onlyVibrantLight, "aqua of [vibrantLight]");
-    dumpBest(NSAppearanceNameAqua, vibrantThenAqua,
-      "aqua of [vibrantLight, aqua]");
-    dumpBest(NSAppearanceNameDarkAqua, aquaDark, "darkAqua of [aqua, darkAqua]");
-    dumpBest(NSAppearanceNameDarkAqua, [NSArray arrayWithObject:
-      NSAppearanceNameAqua], "darkAqua of [aqua]");
-    dumpBest(NSAppearanceNameVibrantLight, aquaDark,
-      "vibrantLight of [aqua, darkAqua]");
-    dumpBest(NSAppearanceNameAqua, [NSArray array], "aqua of []");
-    dumpBest(NSAppearanceNameAqua, [NSArray arrayWithObject: @"Bogus"],
-      "aqua of [Bogus]");
-    ENDSECTION
+    printf("== what -name reports for each constant ==\n");
+    for (i = 0; i < [all count]; i++)
+      {
+        NSString *n = [all objectAtIndex: i];
+        NSAppearance *a = [NSAppearance appearanceNamed: n];
 
-    SECTION("bogus appearance behaviour")
-    NSAppearance *b = [NSAppearance appearanceNamed: @"NotAnAppearance"];
+        printf("  constant=%-52s name=%s\n", [n UTF8String],
+               [[a name] UTF8String]);
+      }
 
-    printf("BOGUS nonnil=%d name=%s vibrancy=%d\n",
-           b != nil, [[b name] UTF8String], [b allowsVibrancy]);
-    printf("BOGUS best of [aqua] = %s\n",
-           [b bestMatchFromAppearancesWithNames:
-             [NSArray arrayWithObject: NSAppearanceNameAqua]] == nil ? "nil"
-             : [[b bestMatchFromAppearancesWithNames:
-                  [NSArray arrayWithObject: NSAppearanceNameAqua]] UTF8String]);
-    ENDSECTION
+    printf("\n== base appearance: each name against [aqua, darkAqua] ==\n");
+    for (i = 0; i < [all count]; i++)
+      {
+        dumpBest([all objectAtIndex: i], aquaDark, "[aqua,darkAqua]");
+      }
+
+    printf("\n== against [aqua] only ==\n");
+    for (i = 0; i < [all count]; i++)
+      {
+        dumpBest([all objectAtIndex: i], [NSArray arrayWithObject:
+          NSAppearanceNameAqua], "[aqua]");
+      }
+
+    printf("\n== against [darkAqua] only ==\n");
+    for (i = 0; i < [all count]; i++)
+      {
+        dumpBest([all objectAtIndex: i], [NSArray arrayWithObject:
+          NSAppearanceNameDarkAqua], "[darkAqua]");
+      }
+
+    printf("\n== cross vibrant ==\n");
+    dumpBest(NSAppearanceNameVibrantLight, [NSArray arrayWithObject:
+      NSAppearanceNameVibrantDark], "[vibrantDark]");
+    dumpBest(NSAppearanceNameVibrantDark, [NSArray arrayWithObject:
+      NSAppearanceNameVibrantLight], "[vibrantLight]");
+    dumpBest(NSAppearanceNameAqua, [NSArray arrayWithObject:
+      NSAppearanceNameAqua], "[aqua]");
   }
   return 0;
 }
