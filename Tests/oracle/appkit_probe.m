@@ -1,36 +1,22 @@
-/* Apple oracle for NSTextTableBlock: the initialiser, the getters, what a copy
-   keeps, and the method type encodings (this header says int where AppKit may
-   say NSInteger).  Portable so the same file runs under GNUstep for an A/B. */
-#ifdef __APPLE__
+/* Apple oracle: what a nil label does.  Fred would rather the empty-string
+   default were set in the initialiser than answered for in the getter.  That
+   only covers the same ground if AppKit lets a label go back to nil.
+   Apple-only. */
 #import <Cocoa/Cocoa.h>
-#else
-#import <AppKit/AppKit.h>
-#endif
-#import <objc/runtime.h>
 #include <stdio.h>
 
-#define SECTION(NAME) \
-  printf("\n== " NAME " ==\n"); \
-  @try {
-
-#define ENDSECTION \
-  } @catch (NSException *e) { \
-    printf("EXCEPTION %s: %s\n", [[e name] UTF8String], \
-           [[e reason] UTF8String]); \
-  }
-
-static void
-dumpEncoding(Class c, const char *name)
+static const char *
+show(NSString *s)
 {
-  SEL s = NSSelectorFromString([NSString stringWithUTF8String: name]);
-  Method m = class_getInstanceMethod(c, s);
-
-  if (m == NULL)
+  if (s == nil)
     {
-      printf("  %-22s (absent)\n", name);
-      return;
+      return "nil";
     }
-  printf("  %-22s %s\n", name, method_getTypeEncoding(m));
+  if ([s length] == 0)
+    {
+      return "empty";
+    }
+  return [s UTF8String];
 }
 
 int
@@ -41,73 +27,57 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    SECTION("method type encodings")
-    printf("(q = NSInteger/long, i = int)\n");
-    dumpEncoding([NSTextTableBlock class], "startingRow");
-    dumpEncoding([NSTextTableBlock class], "rowSpan");
-    dumpEncoding([NSTextTableBlock class], "startingColumn");
-    dumpEncoding([NSTextTableBlock class], "columnSpan");
-    dumpEncoding([NSTextTableBlock class],
-      "initWithTable:startingRow:rowSpan:startingColumn:columnSpan:");
-    dumpEncoding([NSTextTable class], "numberOfColumns");
-    dumpEncoding([NSTextTable class], "setNumberOfColumns:");
-    ENDSECTION
+    printf("== NSTabViewItem label ==\n");
+    {
+      NSTabViewItem *i = [[NSTabViewItem alloc] initWithIdentifier: @"id"];
 
-    SECTION("NSTextTableBlock init")
-    NSTextTable *table = [[NSTextTable alloc] init];
-    NSTextTableBlock *b = [[NSTextTableBlock alloc] initWithTable: table
-                                                      startingRow: 1
-                                                          rowSpan: 2
-                                                   startingColumn: 3
-                                                       columnSpan: 4];
+      printf("DEFAULT  label=%s\n", show([i label]));
+      [i setLabel: @"x"];
+      printf("SET x    label=%s\n", show([i label]));
+      [i setLabel: nil];
+      printf("SET nil  label=%s\n", show([i label]));
+    }
 
-    printf("INIT nonnil=%d tableSame=%d\n", b != nil, [b table] == table);
-    printf("INIT row=%ld rowSpan=%ld col=%ld colSpan=%ld\n",
-           (long)[b startingRow], (long)[b rowSpan],
-           (long)[b startingColumn], (long)[b columnSpan]);
-    ENDSECTION
+    printf("\n== NSToolbarItem label and paletteLabel ==\n");
+    {
+      NSToolbarItem *t = [[NSToolbarItem alloc] initWithItemIdentifier: @"id"];
 
-    SECTION("NSTextTableBlock inherits the text block defaults")
-    NSTextTable *table = [[NSTextTable alloc] init];
-    NSTextTableBlock *b = [[NSTextTableBlock alloc] initWithTable: table
-                                                      startingRow: 0
-                                                          rowSpan: 1
-                                                   startingColumn: 0
-                                                       columnSpan: 1];
+      printf("DEFAULT  label=%s paletteLabel=%s\n",
+             show([t label]), show([t paletteLabel]));
+      [t setLabel: @"L"];
+      [t setPaletteLabel: @"P"];
+      printf("SET      label=%s paletteLabel=%s\n",
+             show([t label]), show([t paletteLabel]));
+      [t setLabel: nil];
+      [t setPaletteLabel: nil];
+      printf("SET nil  label=%s paletteLabel=%s\n",
+             show([t label]), show([t paletteLabel]));
+    }
 
-    printf("INHERIT contentWidth=%g type=%ld backgroundColor=%s\n",
-           (double)[b contentWidth], (long)[b contentWidthValueType],
-           [b backgroundColor] == nil ? "nil" : "set");
-    ENDSECTION
+    printf("\n== NSTabViewItem through an archive with no label ==\n");
+    {
+      /* The keyed decode path here calls setLabel: with whatever it decodes,
+         so an archive with no label hands the setter a nil. */
+      NSTabViewItem *i = [[NSTabViewItem alloc] initWithIdentifier: @"id"];
+      NSData *d;
+      NSTabViewItem *back;
 
-    SECTION("NSTextTableBlock copy")
-    NSTextTable *table = [[NSTextTable alloc] init];
-    NSTextTableBlock *b = [[NSTextTableBlock alloc] initWithTable: table
-                                                      startingRow: 1
-                                                          rowSpan: 2
-                                                   startingColumn: 3
-                                                       columnSpan: 4];
-    NSTextTableBlock *copy;
-
-    [b setContentWidth: 25.0 type: NSTextBlockAbsoluteValueType];
-    copy = [b copy];
-    printf("COPY nonnil=%d class=%s\n", copy != nil,
-           [NSStringFromClass([copy class]) UTF8String]);
-    printf("COPY tableSame=%d row=%ld rowSpan=%ld col=%ld colSpan=%ld\n",
-           [copy table] == table, (long)[copy startingRow],
-           (long)[copy rowSpan], (long)[copy startingColumn],
-           (long)[copy columnSpan]);
-    printf("COPY contentWidth=%g\n", (double)[copy contentWidth]);
-    ENDSECTION
-
-    SECTION("NSTextTable defaults")
-    NSTextTable *table = [[NSTextTable alloc] init];
-
-    printf("TABLE numberOfColumns=%ld collapsesBorders=%d hidesEmptyCells=%d\n",
-           (long)[table numberOfColumns], [table collapsesBorders],
-           [table hidesEmptyCells]);
-    printf("TABLE layoutAlgorithm=%ld\n", (long)[table layoutAlgorithm]);
-    ENDSECTION
+      d = [NSKeyedArchiver archivedDataWithRootObject: i
+                            requiringSecureCoding: NO
+                                            error: NULL];
+      if (d != nil)
+        {
+          back = [NSKeyedUnarchiver unarchivedObjectOfClass: [NSTabViewItem class]
+                                                   fromData: d
+                                                      error: NULL];
+          printf("ARCHIVED label=%s\n", back == nil ? "(decode failed)"
+                                                    : show([back label]));
+        }
+      else
+        {
+          printf("ARCHIVED (encode failed)\n");
+        }
+    }
   }
   return 0;
 }
