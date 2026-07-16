@@ -1,20 +1,36 @@
-/* Apple oracle, pass 2 for NSSearchFieldCell.  What maximumRecents -1 (the
-   default) and 0 mean for how many recent searches are kept, and how setting
-   the autosave name interacts with searches already set.  Apple-only. */
+/* Apple oracle for NSTextTableBlock: the initialiser, the getters, what a copy
+   keeps, and the method type encodings (this header says int where AppKit may
+   say NSInteger).  Portable so the same file runs under GNUstep for an A/B. */
+#ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
+#else
+#import <AppKit/AppKit.h>
+#endif
+#import <objc/runtime.h>
 #include <stdio.h>
 
-static NSArray *
-manySearches(int n)
-{
-  NSMutableArray *a = [NSMutableArray array];
-  int i;
+#define SECTION(NAME) \
+  printf("\n== " NAME " ==\n"); \
+  @try {
 
-  for (i = 0; i < n; i++)
+#define ENDSECTION \
+  } @catch (NSException *e) { \
+    printf("EXCEPTION %s: %s\n", [[e name] UTF8String], \
+           [[e reason] UTF8String]); \
+  }
+
+static void
+dumpEncoding(Class c, const char *name)
+{
+  SEL s = NSSelectorFromString([NSString stringWithUTF8String: name]);
+  Method m = class_getInstanceMethod(c, s);
+
+  if (m == NULL)
     {
-      [a addObject: [NSString stringWithFormat: @"s%d", i]];
+      printf("  %-22s (absent)\n", name);
+      return;
     }
-  return a;
+  printf("  %-22s %s\n", name, method_getTypeEncoding(m));
 }
 
 int
@@ -25,78 +41,73 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("== what -1 means for truncation ==\n");
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
+    SECTION("method type encodings")
+    printf("(q = NSInteger/long, i = int)\n");
+    dumpEncoding([NSTextTableBlock class], "startingRow");
+    dumpEncoding([NSTextTableBlock class], "rowSpan");
+    dumpEncoding([NSTextTableBlock class], "startingColumn");
+    dumpEncoding([NSTextTableBlock class], "columnSpan");
+    dumpEncoding([NSTextTableBlock class],
+      "initWithTable:startingRow:rowSpan:startingColumn:columnSpan:");
+    dumpEncoding([NSTextTable class], "numberOfColumns");
+    dumpEncoding([NSTextTable class], "setNumberOfColumns:");
+    ENDSECTION
 
-      printf("DEFAULT max=%ld\n", (long)[c maximumRecents]);
-      [c setRecentSearches: manySearches(20)];
-      printf("DEFAULT given 20 -> count=%lu\n",
-             (unsigned long)[[c recentSearches] count]);
-    }
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
+    SECTION("NSTextTableBlock init")
+    NSTextTable *table = [[NSTextTable alloc] init];
+    NSTextTableBlock *b = [[NSTextTableBlock alloc] initWithTable: table
+                                                      startingRow: 1
+                                                          rowSpan: 2
+                                                   startingColumn: 3
+                                                       columnSpan: 4];
 
-      [c setMaximumRecents: -1];
-      [c setRecentSearches: manySearches(20)];
-      printf("EXPLICIT -1 given 20 -> count=%lu\n",
-             (unsigned long)[[c recentSearches] count]);
-    }
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
+    printf("INIT nonnil=%d tableSame=%d\n", b != nil, [b table] == table);
+    printf("INIT row=%ld rowSpan=%ld col=%ld colSpan=%ld\n",
+           (long)[b startingRow], (long)[b rowSpan],
+           (long)[b startingColumn], (long)[b columnSpan]);
+    ENDSECTION
 
-      [c setMaximumRecents: 0];
-      [c setRecentSearches: manySearches(5)];
-      printf("ZERO given 5 -> count=%lu\n",
-             (unsigned long)[[c recentSearches] count]);
-    }
+    SECTION("NSTextTableBlock inherits the text block defaults")
+    NSTextTable *table = [[NSTextTable alloc] init];
+    NSTextTableBlock *b = [[NSTextTableBlock alloc] initWithTable: table
+                                                      startingRow: 0
+                                                          rowSpan: 1
+                                                   startingColumn: 0
+                                                       columnSpan: 1];
 
-    printf("\n== autosave name and searches ==\n");
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
+    printf("INHERIT contentWidth=%g type=%ld backgroundColor=%s\n",
+           (double)[b contentWidth], (long)[b contentWidthValueType],
+           [b backgroundColor] == nil ? "nil" : "set");
+    ENDSECTION
 
-      [c setRecentSearches: [NSArray arrayWithObjects: @"a", @"b", nil]];
-      printf("SET-THEN-AUTOSAVE before=%lu",
-             (unsigned long)[[c recentSearches] count]);
-      [c setRecentsAutosaveName: @"probeSaveA"];
-      printf(" after=%lu\n", (unsigned long)[[c recentSearches] count]);
-    }
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
+    SECTION("NSTextTableBlock copy")
+    NSTextTable *table = [[NSTextTable alloc] init];
+    NSTextTableBlock *b = [[NSTextTableBlock alloc] initWithTable: table
+                                                      startingRow: 1
+                                                          rowSpan: 2
+                                                   startingColumn: 3
+                                                       columnSpan: 4];
+    NSTextTableBlock *copy;
 
-      [c setRecentsAutosaveName: @"probeSaveB"];
-      printf("AUTOSAVE-THEN-SET before=%lu",
-             (unsigned long)[[c recentSearches] count]);
-      [c setRecentSearches: [NSArray arrayWithObjects: @"a", @"b", nil]];
-      printf(" after=%lu\n", (unsigned long)[[c recentSearches] count]);
-    }
+    [b setContentWidth: 25.0 type: NSTextBlockAbsoluteValueType];
+    copy = [b copy];
+    printf("COPY nonnil=%d class=%s\n", copy != nil,
+           [NSStringFromClass([copy class]) UTF8String]);
+    printf("COPY tableSame=%d row=%ld rowSpan=%ld col=%ld colSpan=%ld\n",
+           [copy table] == table, (long)[copy startingRow],
+           (long)[copy rowSpan], (long)[copy startingColumn],
+           (long)[copy columnSpan]);
+    printf("COPY contentWidth=%g\n", (double)[copy contentWidth]);
+    ENDSECTION
 
-    printf("\n== recentSearches identity ==\n");
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
-      NSArray *given = [NSArray arrayWithObjects: @"a", @"b", nil];
+    SECTION("NSTextTable defaults")
+    NSTextTable *table = [[NSTextTable alloc] init];
 
-      [c setRecentSearches: given];
-      printf("SAME=%d EQUAL=%d CLASS=%s\n",
-             [c recentSearches] == given,
-             [[c recentSearches] isEqualToArray: given],
-             [NSStringFromClass([[c recentSearches] class]) UTF8String]);
-    }
-
-    printf("\n== setRecentSearches: nil ==\n");
-    {
-      NSSearchFieldCell *c = [[NSSearchFieldCell alloc] initTextCell: @"f"];
-
-      [c setRecentSearches: [NSArray arrayWithObject: @"a"]];
-      @try {
-        [c setRecentSearches: nil];
-        printf("NIL ok recentSearches=%s count=%lu\n",
-               [c recentSearches] == nil ? "nil" : "set",
-               (unsigned long)[[c recentSearches] count]);
-      } @catch (NSException *e) {
-        printf("NIL raised %s\n", [[e name] UTF8String]);
-      }
-    }
+    printf("TABLE numberOfColumns=%ld collapsesBorders=%d hidesEmptyCells=%d\n",
+           (long)[table numberOfColumns], [table collapsesBorders],
+           [table hidesEmptyCells]);
+    printf("TABLE layoutAlgorithm=%ld\n", (long)[table layoutAlgorithm]);
+    ENDSECTION
   }
   return 0;
 }
