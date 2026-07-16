@@ -1,14 +1,19 @@
-/* Apple oracle for NSLayoutAnchor.  Probes the class hierarchy, whether NSView
-   vends anchors (leadingAnchor/widthAnchor/...), the constraints those anchors
-   build (attribute, constant, relation, multiplier), and the behaviour of the
-   base-class constraintEqualToAnchor:constant: (does it honour the constant?).
-   Portable so the same file runs under GNUstep for an A/B. */
+/* Apple oracle for NSLayoutGuide.  Probes init defaults, whether the guide
+   vends anchors (and what attribute/item they carry), NSView's layout-guide
+   support (addLayoutGuide:/layoutGuides and owningView wiring), and the
+   identifier copy semantics.  Portable so the same file runs under GNUstep. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
 #include <stdio.h>
+
+static const char *
+cls(id o)
+{
+  return o == nil ? "nil" : (const char *)[NSStringFromClass([o class]) UTF8String];
+}
 
 int
 main(int argc, const char **argv)
@@ -18,51 +23,48 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("HIER dimIsAnchor=%d xIsAnchor=%d yIsAnchor=%d copying=%d coding=%d\n",
-           [NSLayoutDimension isSubclassOfClass: [NSLayoutAnchor class]],
-           [NSLayoutXAxisAnchor isSubclassOfClass: [NSLayoutAnchor class]],
-           [NSLayoutYAxisAnchor isSubclassOfClass: [NSLayoutAnchor class]],
-           [NSLayoutAnchor conformsToProtocol: @protocol(NSCopying)],
-           [NSLayoutAnchor conformsToProtocol: @protocol(NSCoding)]);
+    NSLayoutGuide *g = [[NSLayoutGuide alloc] init];
+    NSRect f = [g frame];
+    printf("INIT frameW=%g frameH=%g owningView=%s identifier=%s ambiguous=%d\n",
+           f.size.width, f.size.height,
+           [g owningView] == nil ? "nil" : "set",
+           [g identifier] == nil ? "nil" : "set",
+           [g hasAmbiguousLayout]);
+
+    printf("ANCHORS leading=%s trailing=%s top=%s bottom=%s width=%s height=%s centerX=%s centerY=%s\n",
+           cls([g leadingAnchor]), cls([g trailingAnchor]),
+           cls([g topAnchor]), cls([g bottomAnchor]),
+           cls([g widthAnchor]), cls([g heightAnchor]),
+           cls([g centerXAnchor]), cls([g centerYAnchor]));
+
+    if ([g widthAnchor] != nil)
+      {
+        NSLayoutConstraint *w = [[g widthAnchor] constraintEqualToConstant: 10];
+        printf("WIDTHC firstItemIsGuide=%d firstAttr=%ld const=%g\n",
+               [w firstItem] == g, (long)[w firstAttribute], [w constant]);
+      }
+    else
+      printf("WIDTHC unavailable\n");
 
     NSView *v = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
-    NSView *v2 = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
+    printf("VIEW respAdd=%d respGuides=%d respRemove=%d\n",
+           [v respondsToSelector: @selector(addLayoutGuide:)],
+           [v respondsToSelector: @selector(layoutGuides)],
+           [v respondsToSelector: @selector(removeLayoutGuide:)]);
 
-    printf("VIEW leadingAnchor=%d widthAnchor=%d topAnchor=%d\n",
-           [v respondsToSelector: @selector(leadingAnchor)],
-           [v respondsToSelector: @selector(widthAnchor)],
-           [v respondsToSelector: @selector(topAnchor)]);
-
-    if ([v respondsToSelector: @selector(widthAnchor)])
+    if ([v respondsToSelector: @selector(addLayoutGuide:)])
       {
-        NSLayoutConstraint *w = [[v widthAnchor] constraintEqualToConstant: 50];
-        printf("WIDTH firstAttr=%ld secondItem=%s secondAttr=%ld const=%g rel=%ld mult=%g\n",
-               (long)[w firstAttribute],
-               [w secondItem] == nil ? "nil" : "set",
-               (long)[w secondAttribute], [w constant], (long)[w relation],
-               [w multiplier]);
-
-        NSLayoutConstraint *lead =
-            [[v leadingAnchor] constraintEqualToAnchor: [v2 leadingAnchor]
-                                              constant: 8];
-        printf("LEAD firstAttr=%ld secondAttr=%ld const=%g rel=%ld mult=%g\n",
-               (long)[lead firstAttribute], (long)[lead secondAttribute],
-               [lead constant], (long)[lead relation], [lead multiplier]);
+        [v addLayoutGuide: g];
+        printf("ADD owningViewIsV=%d inGuides=%d guideCount=%lu\n",
+               [g owningView] == v,
+               [[v layoutGuides] containsObject: g],
+               (unsigned long)[[v layoutGuides] count]);
       }
 
-    /* Directly-instantiated base anchor: does the Equal+constant variant honour
-       the constant?  (Apple discourages direct instantiation; guard it.) */
-    NS_DURING
-      {
-        NSLayoutAnchor *a = [[NSLayoutAnchor alloc] init];
-        NSLayoutConstraint *e = [a constraintEqualToAnchor: a constant: 10];
-        NSLayoutConstraint *g =
-            [a constraintGreaterThanOrEqualToAnchor: a constant: 10];
-        printf("DIRECT equalConst=%g gteConst=%g\n", [e constant], [g constant]);
-      }
-    NS_HANDLER
-      printf("DIRECT raised=%s\n", [[localException name] UTF8String]);
-    NS_ENDHANDLER
+    NSMutableString *ms = [NSMutableString stringWithString: @"id1"];
+    [g setIdentifier: ms];
+    [ms appendString: @"X"];
+    printf("IDENT afterMutate=%s\n", [[g identifier] UTF8String]);
   }
   return 0;
 }
