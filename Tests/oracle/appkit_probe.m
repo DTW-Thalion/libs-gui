@@ -1,7 +1,8 @@
-/* Apple oracle for NSImageCell.  Probes the NSImageAlignment / NSImageFrameStyle
-   / NSImageScaling enum values, the init defaults (imageAlignment, imageScaling,
-   imageFrameStyle, refusesFirstResponder) and the three setters.  Portable so
-   the same file runs under GNUstep for an A/B. */
+/* Apple oracle for NSBrowserCell.  Probes init defaults (leaf, loaded,
+   alternateImage), the leaf/loaded/alternateImage setters, set/reset (highlight
+   + state), the +branchImage / +highlightedBranchImage class images, and
+   whether -copy preserves leaf/loaded/alternateImage.  Portable so the same
+   file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -17,22 +18,32 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM alignCenter=%d alignTop=%d alignRight=%d frameNone=%d framePhoto=%d frameButton=%d scalePropDown=%d scaleNone=%d\n",
-           (int)NSImageAlignCenter, (int)NSImageAlignTop, (int)NSImageAlignRight,
-           (int)NSImageFrameNone, (int)NSImageFramePhoto, (int)NSImageFrameButton,
-           (int)NSImageScaleProportionallyDown, (int)NSImageScaleNone);
+    NSBrowserCell *c = [[NSBrowserCell alloc] initTextCell: @"Item"];
+    printf("INIT leaf=%d loaded=%d altImage=%s\n",
+           [c isLeaf], [c isLoaded],
+           [c alternateImage] == nil ? "nil" : "set");
 
-    NSImageCell *c = [[NSImageCell alloc] init];
-    printf("INIT alignment=%ld scaling=%ld frameStyle=%ld refuses=%d\n",
-           (long)[c imageAlignment], (long)[c imageScaling],
-           (long)[c imageFrameStyle], [c refusesFirstResponder]);
+    NSImage *img = [[NSImage alloc] initWithSize: NSMakeSize(8, 8)];
+    [c setLeaf: YES];
+    [c setLoaded: YES];
+    [c setAlternateImage: img];
+    printf("SET leaf=%d loaded=%d altImageSame=%d\n",
+           [c isLeaf], [c isLoaded], [c alternateImage] == img);
 
-    [c setImageAlignment: NSImageAlignTop];
-    [c setImageScaling: NSImageScaleNone];
-    [c setImageFrameStyle: NSImageFramePhoto];
-    printf("SET alignment=%ld scaling=%ld frameStyle=%ld\n",
-           (long)[c imageAlignment], (long)[c imageScaling],
-           (long)[c imageFrameStyle]);
+    [c set];
+    printf("AFTERSET highlighted=%d state=%ld\n",
+           [c isHighlighted], (long)[c state]);
+    [c reset];
+    printf("AFTERRESET highlighted=%d state=%ld\n",
+           [c isHighlighted], (long)[c state]);
+
+    printf("BRANCH branchImage=%s highlightedBranchImage=%s\n",
+           [NSBrowserCell branchImage] == nil ? "nil" : "set",
+           [NSBrowserCell highlightedBranchImage] == nil ? "nil" : "set");
+
+    NSBrowserCell *copy = [c copy];
+    printf("COPY leaf=%d loaded=%d altImageSame=%d\n",
+           [copy isLeaf], [copy isLoaded], [copy alternateImage] == img);
   }
   return 0;
 }
