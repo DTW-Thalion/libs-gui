@@ -1,7 +1,7 @@
-/* Apple oracle for NSLayoutGuide.  Probes init defaults, whether the guide
-   vends anchors (and what attribute/item they carry), NSView's layout-guide
-   support (addLayoutGuide:/layoutGuides and owningView wiring), and the
-   identifier copy semantics.  Portable so the same file runs under GNUstep. */
+/* Apple oracle for NSPasteboardItem.  Probes init (empty types), the return
+   values and round-trips of setData:/setString:, whether setting data adds the
+   type to -types, and -availableTypeFromArray:.  Portable so the same file runs
+   under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -10,9 +10,9 @@
 #include <stdio.h>
 
 static const char *
-cls(id o)
+s(NSString *v)
 {
-  return o == nil ? "nil" : (const char *)[NSStringFromClass([o class]) UTF8String];
+  return v == nil ? "nil" : (const char *)[v UTF8String];
 }
 
 int
@@ -23,48 +23,28 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    NSLayoutGuide *g = [[NSLayoutGuide alloc] init];
-    NSRect f = [g frame];
-    printf("INIT frameW=%g frameH=%g owningView=%s identifier=%s ambiguous=%d\n",
-           f.size.width, f.size.height,
-           [g owningView] == nil ? "nil" : "set",
-           [g identifier] == nil ? "nil" : "set",
-           [g hasAmbiguousLayout]);
+    NSString *t1 = @"public.data";
+    NSString *t2 = @"public.utf8-plain-text";
 
-    printf("ANCHORS leading=%s trailing=%s top=%s bottom=%s width=%s height=%s centerX=%s centerY=%s\n",
-           cls([g leadingAnchor]), cls([g trailingAnchor]),
-           cls([g topAnchor]), cls([g bottomAnchor]),
-           cls([g widthAnchor]), cls([g heightAnchor]),
-           cls([g centerXAnchor]), cls([g centerYAnchor]));
+    NSPasteboardItem *a = [[NSPasteboardItem alloc] init];
+    printf("INIT typesCount=%lu\n", (unsigned long)[[a types] count]);
 
-    if ([g widthAnchor] != nil)
-      {
-        NSLayoutConstraint *w = [[g widthAnchor] constraintEqualToConstant: 10];
-        printf("WIDTHC firstItemIsGuide=%d firstAttr=%ld const=%g\n",
-               [w firstItem] == g, (long)[w firstAttribute], [w constant]);
-      }
-    else
-      printf("WIDTHC unavailable\n");
+    NSData *d = [@"bytes" dataUsingEncoding: NSUTF8StringEncoding];
+    BOOL rd = [a setData: d forType: t1];
+    printf("SETDATA ret=%d typesCount=%lu contains=%d roundtrip=%d\n",
+           rd, (unsigned long)[[a types] count],
+           [[a types] containsObject: t1],
+           [[a dataForType: t1] isEqual: d]);
 
-    NSView *v = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
-    printf("VIEW respAdd=%d respGuides=%d respRemove=%d\n",
-           [v respondsToSelector: @selector(addLayoutGuide:)],
-           [v respondsToSelector: @selector(layoutGuides)],
-           [v respondsToSelector: @selector(removeLayoutGuide:)]);
+    NSPasteboardItem *b = [[NSPasteboardItem alloc] init];
+    BOOL rs = [b setString: @"hello" forType: t2];
+    printf("SETSTRING ret=%d typesCount=%lu contains=%d roundtrip=%d\n",
+           rs, (unsigned long)[[b types] count],
+           [[b types] containsObject: t2],
+           [[b stringForType: t2] isEqualToString: @"hello"]);
 
-    if ([v respondsToSelector: @selector(addLayoutGuide:)])
-      {
-        [v addLayoutGuide: g];
-        printf("ADD owningViewIsV=%d inGuides=%d guideCount=%lu\n",
-               [g owningView] == v,
-               [[v layoutGuides] containsObject: g],
-               (unsigned long)[[v layoutGuides] count]);
-      }
-
-    NSMutableString *ms = [NSMutableString stringWithString: @"id1"];
-    [g setIdentifier: ms];
-    [ms appendString: @"X"];
-    printf("IDENT afterMutate=%s\n", [[g identifier] UTF8String]);
+    printf("AVAIL fromArray=%s\n",
+           s([b availableTypeFromArray: [NSArray arrayWithObjects: t2, t1, nil]]));
   }
   return 0;
 }
