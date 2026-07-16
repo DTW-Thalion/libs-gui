@@ -1,7 +1,7 @@
-/* Apple oracle, pass 2: NSNibConnector's semantics (AppKit does still have the
-   class) and NSSharingServicePickerToolbarItem's delegate.  Portable so the
-   same file runs under GNUstep for an A/B.  activityItemsConfiguration is left
-   out: AppKit has no such selector, so there is nothing to compare. */
+/* Apple oracle, pass 3.  NSNibConnector is in AppKit's binary but not in its
+   headers any more, so it is reached through the runtime rather than compiled
+   against.  Also NSSharingServicePickerToolbarItem's delegate, whose setter is
+   a no-op here.  Portable so the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -25,17 +25,19 @@ nilstr(id o)
   return o == nil ? "nil" : "set";
 }
 
-/* Declared so this builds on both sides. */
-@interface NSNibConnector (Probe)
-- (id) source;
-- (void) setSource: (id)o;
-- (id) destination;
-- (void) setDestination: (id)o;
-- (NSString *) label;
-- (void) setLabel: (NSString *)l;
-- (void) establishConnection;
-- (void) replaceObject: (id)a withObject: (id)b;
-@end
+static id
+get(id o, const char *name)
+{
+  return [o performSelector: NSSelectorFromString(
+    [NSString stringWithUTF8String: name])];
+}
+
+static void
+put(id o, const char *name, id arg)
+{
+  [o performSelector: NSSelectorFromString(
+    [NSString stringWithUTF8String: name]) withObject: arg];
+}
 
 int
 main(int argc, const char **argv)
@@ -44,69 +46,80 @@ main(int argc, const char **argv)
   @autoreleasepool
   {
     [NSApplication sharedApplication];
+    Class connector = NSClassFromString(@"NSNibConnector");
+
+    printf("NSNibConnector: %s\n", connector == Nil ? "ABSENT" : "present");
 
     SECTION("NSNibConnector defaults")
-    NSNibConnector *c = [[NSNibConnector alloc] init];
+    id c = [[connector alloc] init];
 
     printf("INIT nonnil=%d source=%s destination=%s label=%s\n",
-           c != nil, nilstr([c source]), nilstr([c destination]),
-           nilstr([c label]));
+           c != nil, nilstr(get(c, "source")), nilstr(get(c, "destination")),
+           nilstr(get(c, "label")));
     ENDSECTION
 
     SECTION("NSNibConnector round trips")
-    NSNibConnector *c = [[NSNibConnector alloc] init];
+    id c = [[connector alloc] init];
     NSString *src = @"theSource";
     NSString *dst = @"theDestination";
 
-    [c setSource: src];
-    [c setDestination: dst];
-    [c setLabel: @"theLabel"];
+    put(c, "setSource:", src);
+    put(c, "setDestination:", dst);
+    put(c, "setLabel:", @"theLabel");
     printf("SET sourceSame=%d destinationSame=%d label=%s\n",
-           [c source] == src, [c destination] == dst,
-           [[c label] UTF8String]);
+           get(c, "source") == src, get(c, "destination") == dst,
+           [[get(c, "label") description] UTF8String]);
 
-    [c setSource: nil];
-    [c setLabel: nil];
-    printf("SETNIL source=%s label=%s\n", nilstr([c source]),
-           nilstr([c label]));
+    put(c, "setSource:", nil);
+    put(c, "setLabel:", nil);
+    printf("SETNIL source=%s label=%s\n", nilstr(get(c, "source")),
+           nilstr(get(c, "label")));
     ENDSECTION
 
     SECTION("NSNibConnector replaceObject:withObject:")
-    NSNibConnector *c = [[NSNibConnector alloc] init];
+    id c = [[connector alloc] init];
     NSString *a = @"objectA";
     NSString *b = @"objectB";
 
-    [c setSource: a];
-    [c setDestination: a];
-    [c replaceObject: a withObject: b];
+    put(c, "setSource:", a);
+    put(c, "setDestination:", a);
+    [c performSelector: NSSelectorFromString(@"replaceObject:withObject:")
+            withObject: a withObject: b];
     printf("REPLACE source=%s destination=%s\n",
-           [[c source] UTF8String], [[c destination] UTF8String]);
+           [[get(c, "source") description] UTF8String],
+           [[get(c, "destination") description] UTF8String]);
 
-    /* replacing something it does not hold changes nothing */
-    [c replaceObject: @"notHeld" withObject: @"other"];
+    [c performSelector: NSSelectorFromString(@"replaceObject:withObject:")
+            withObject: @"notHeld" withObject: @"other"];
     printf("REPLACE-MISS source=%s destination=%s\n",
-           [[c source] UTF8String], [[c destination] UTF8String]);
+           [[get(c, "source") description] UTF8String],
+           [[get(c, "destination") description] UTF8String]);
     ENDSECTION
 
     SECTION("NSNibConnector isEqual")
-    NSNibConnector *x = [[NSNibConnector alloc] init];
-    NSNibConnector *y = [[NSNibConnector alloc] init];
+    id x = [[connector alloc] init];
+    id y = [[connector alloc] init];
 
     printf("EMPTY selfEqual=%d twoEmptyEqual=%d\n",
            [x isEqual: x], [x isEqual: y]);
 
-    [x setSource: @"s"]; [x setDestination: @"d"]; [x setLabel: @"l"];
-    [y setSource: @"s"]; [y setDestination: @"d"]; [y setLabel: @"l"];
+    put(x, "setSource:", @"s"); put(x, "setDestination:", @"d");
+    put(x, "setLabel:", @"l");
+    put(y, "setSource:", @"s"); put(y, "setDestination:", @"d");
+    put(y, "setLabel:", @"l");
     printf("SAMEVALUES equal=%d\n", [x isEqual: y]);
 
-    [y setLabel: @"different"];
+    put(y, "setLabel:", @"different");
     printf("DIFFERENTLABEL equal=%d\n", [x isEqual: y]);
     ENDSECTION
 
     SECTION("NSNibConnector establishConnection")
-    NSNibConnector *c = [[NSNibConnector alloc] init];
+    id c = [[connector alloc] init];
 
-    @try { [c establishConnection]; printf("ESTABLISH ok on an empty one\n"); }
+    @try {
+      [c performSelector: NSSelectorFromString(@"establishConnection")];
+      printf("ESTABLISH ok on an empty one\n");
+    }
     @catch (NSException *e) { printf("ESTABLISH raised %s\n",
       [[e name] UTF8String]); }
     ENDSECTION
