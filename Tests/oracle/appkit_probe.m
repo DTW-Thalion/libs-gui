@@ -1,7 +1,7 @@
-/* Apple oracle for NSPDFInfo.  Probes the NSPaperOrientation enum, the init
-   defaults (URL, fileExtensionHidden, tagNames, paperSize, orientation,
-   attributes), the setters, and whether -copy returns a non-nil object.
-   Portable so the same file runs under GNUstep for an A/B. */
+/* Apple oracle for NSMenuItemCell.  Probes init defaults (needsSizing,
+   highlighted, needsDisplay), setMenuItem: (identity, needsSizing after, tag,
+   enabled follows the item), and the highlighted / needsSizing / needsDisplay
+   setters.  Portable so the same file runs under GNUstep for an A/B. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -17,31 +17,28 @@ main(int argc, const char **argv)
   {
     [NSApplication sharedApplication];
 
-    printf("ENUM portrait=%ld landscape=%ld\n",
-           (long)NSPaperOrientationPortrait, (long)NSPaperOrientationLandscape);
+    NSMenuItemCell *c = [[NSMenuItemCell alloc] init];
+    printf("INIT needsSizing=%d highlighted=%d needsDisplay=%d\n",
+           [c needsSizing], [c isHighlighted], [c needsDisplay]);
 
-    NSPDFInfo *info = [[NSPDFInfo alloc] init];
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle: @"Item"
+                                                  action: NULL
+                                           keyEquivalent: @""];
+    [item setTag: 42];
+    [item setEnabled: NO];
+    [c setMenuItem: item];
+    printf("SETITEM same=%d needsSizingAfter=%d tag=%ld enabled=%d\n",
+           [c menuItem] == item, [c needsSizing], (long)[c tag],
+           [c isEnabled]);
 
-    NSSize p = [info paperSize];
-    printf("INIT url=%s hidden=%d tagNames=%s paperW=%g paperH=%g orientation=%ld attributes=%s\n",
-           [info URL] == nil ? "nil" : "set",
-           [info isFileExtensionHidden],
-           [info tagNames] == nil ? "nil"
-             : [[NSString stringWithFormat: @"count-%lu",
-                          (unsigned long)[[info tagNames] count]] UTF8String],
-           p.width, p.height,
-           (long)[info orientation],
-           [info attributes] == nil ? "nil" : "set");
+    [c setHighlighted: YES];
+    printf("SETHIGH highlighted=%d\n", [c isHighlighted]);
 
-    [info setFileExtensionHidden: YES];
-    [info setOrientation: NSPaperOrientationLandscape];
-    [info setPaperSize: NSMakeSize(612, 792)];
-    NSSize p2 = [info paperSize];
-    printf("SET hidden=%d orientation=%ld paperW=%g paperH=%g\n",
-           [info isFileExtensionHidden], (long)[info orientation],
-           p2.width, p2.height);
+    [c setNeedsSizing: NO];
+    printf("SETSIZING needsSizing=%d\n", [c needsSizing]);
 
-    printf("COPY nonNil=%d\n", [info copy] != nil);
+    [c setNeedsDisplay: YES];
+    printf("SETDISPLAY needsDisplay=%d\n", [c needsDisplay]);
   }
   return 0;
 }
