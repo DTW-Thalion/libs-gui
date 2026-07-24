@@ -8,5 +8,5 @@ jobs:
       - name: Compile and run the AppKit probe
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
-            Tests/oracle/nsresponder_held_probe.m -o nsresponder_held_probe
-          ./nsresponder_held_probe 2>&1
+            Tests/oracle/nscell_expansion_probe.m -o nscell_expansion_probe
+          ./nscell_expansion_probe 2>./nsresponder_held_probe 2>&11
