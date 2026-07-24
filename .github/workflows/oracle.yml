@@ -8,5 +8,5 @@ jobs:
       - name: Compile and run the AppKit probe
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
-            Tests/oracle/nswindow_resizeindicator_probe.m -o nswindow_resizeindicator_probe
-          ./nswindow_resizeindicator_probe 2>&1
+            Tests/oracle/appkit_probe.m -o appkit_probe
+          ./appkit_probe 2>&1
