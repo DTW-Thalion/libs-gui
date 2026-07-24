@@ -6,6 +6,7 @@ Output lines: '@@ Class' then 'i selector' / 'c selector' (sorted, deduped)."""
 import re, glob, sys, os
 
 classes = {}  # name -> set of 'i sel' / 'c sel'
+supers = {}   # name -> superclass
 
 def add(cls, kind, sel):
     if cls and sel:
@@ -74,7 +75,11 @@ for d in sys.argv[1:]:
             s = line.strip()
             if not s: continue
             mi = re.match(r'@interface\s+(\w+)', s)
-            if mi: cur = mi.group(1); buf = ''; continue
+            if mi:
+                cur = mi.group(1); buf = ''
+                ms = re.match(r'@interface\s+\w+\s*:\s*(\w+)', s)
+                if ms and cur not in supers: supers[cur] = ms.group(1)
+                continue
             if re.match(r'@protocol\s+\w+', s): cur = None; buf = ''; continue
             if s.startswith('@end'): cur = None; buf = ''; continue
             if cur is None: continue
@@ -90,6 +95,6 @@ for d in sys.argv[1:]:
                     parse_method(cur, buf.split(';')[0]); buf = ''
 
 for c in sorted(classes):
-    print('@@ ' + c)
+    print('@@ ' + c + ' : ' + supers.get(c, '(root)'))
     for x in sorted(classes[c]):
         print(x)
