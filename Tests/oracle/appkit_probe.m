@@ -1,7 +1,7 @@
-/* Apple oracle, pass 3.  NSNibConnector is in AppKit's binary but not in its
-   headers any more, so it is reached through the runtime rather than compiled
-   against.  Also NSSharingServicePickerToolbarItem's delegate, whose setter is
-   a no-op here.  Portable so the same file runs under GNUstep for an A/B. */
+/* Apple oracle: NSButton click/state semantics per button type.
+   Portable so the same file runs under GNUstep for an A/B comparison.
+   Question: does -performClick: (and -setNextState) change the state of a
+   momentary button, and how does it differ from a toggle/checkbox/radio? */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -9,135 +9,60 @@
 #endif
 #include <stdio.h>
 
-#define SECTION(NAME) \
-  printf("\n== " NAME " ==\n"); \
-  @try {
-
-#define ENDSECTION \
-  } @catch (NSException *e) { \
-    printf("EXCEPTION %s: %s\n", [[e name] UTF8String], \
-           [[e reason] UTF8String]); \
-  }
-
-static const char *
-nilstr(id o)
-{
-  return o == nil ? "nil" : "set";
-}
-
-static id
-get(id o, const char *name)
-{
-  return [o performSelector: NSSelectorFromString(
-    [NSString stringWithUTF8String: name])];
-}
+@interface Ctr : NSObject { @public int hits; } @end
+@implementation Ctr - (void) act: (id)s { hits++; } @end
 
 static void
-put(id o, const char *name, id arg)
+probe(const char *name, NSInteger type, BOOL setType)
 {
-  [o performSelector: NSSelectorFromString(
-    [NSString stringWithUTF8String: name]) withObject: arg];
+  Ctr *t = [Ctr new];
+  NSButton *b = [[NSButton alloc] initWithFrame: NSMakeRect(0, 0, 80, 24)];
+  if (setType)
+    [b setButtonType: (NSButtonType)type];
+  [b setTarget: t];
+  [b setAction: @selector(act:)];
+  NSInteger s0 = [b state];
+  [b performClick: nil];
+  NSInteger s1 = [b state];
+  [b performClick: nil];
+  NSInteger s2 = [b state];
+  printf("%-22s initial=%ld  performClick->%ld  again->%ld  hits=%d\n",
+         name, (long)s0, (long)s1, (long)s2, t->hits);
 }
 
 int
-main(int argc, const char **argv)
+main(void)
 {
-  setvbuf(stdout, NULL, _IONBF, 0);
   @autoreleasepool
   {
+    setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
-    Class connector = NSClassFromString(@"NSNibConnector");
 
-    printf("NSNibConnector: %s\n", connector == Nil ? "ABSENT" : "present");
+    printf("== NSButton performClick state by type ==\n");
+    probe("default(no setType)", 0, NO);
+    probe("MomentaryLight", NSMomentaryLightButton, YES);
+    probe("MomentaryPushIn", NSMomentaryPushInButton, YES);
+    probe("MomentaryChange", NSMomentaryChangeButton, YES);
+    probe("PushOnPushOff", NSPushOnPushOffButton, YES);
+    probe("OnOff", NSOnOffButton, YES);
+    probe("Toggle", NSToggleButton, YES);
+    probe("Switch(checkbox)", NSSwitchButton, YES);
+    probe("Radio", NSRadioButton, YES);
 
-    SECTION("NSNibConnector defaults")
-    id c = [[connector alloc] init];
-
-    printf("INIT nonnil=%d source=%s destination=%s label=%s\n",
-           c != nil, nilstr(get(c, "source")), nilstr(get(c, "destination")),
-           nilstr(get(c, "label")));
-    ENDSECTION
-
-    SECTION("NSNibConnector round trips")
-    id c = [[connector alloc] init];
-    NSString *src = @"theSource";
-    NSString *dst = @"theDestination";
-
-    put(c, "setSource:", src);
-    put(c, "setDestination:", dst);
-    put(c, "setLabel:", @"theLabel");
-    printf("SET sourceSame=%d destinationSame=%d label=%s\n",
-           get(c, "source") == src, get(c, "destination") == dst,
-           [[get(c, "label") description] UTF8String]);
-
-    put(c, "setSource:", nil);
-    put(c, "setLabel:", nil);
-    printf("SETNIL source=%s label=%s\n", nilstr(get(c, "source")),
-           nilstr(get(c, "label")));
-    ENDSECTION
-
-    SECTION("NSNibConnector replaceObject:withObject:")
-    id c = [[connector alloc] init];
-    NSString *a = @"objectA";
-    NSString *b = @"objectB";
-
-    put(c, "setSource:", a);
-    put(c, "setDestination:", a);
-    [c performSelector: NSSelectorFromString(@"replaceObject:withObject:")
-            withObject: a withObject: b];
-    printf("REPLACE source=%s destination=%s\n",
-           [[get(c, "source") description] UTF8String],
-           [[get(c, "destination") description] UTF8String]);
-
-    [c performSelector: NSSelectorFromString(@"replaceObject:withObject:")
-            withObject: @"notHeld" withObject: @"other"];
-    printf("REPLACE-MISS source=%s destination=%s\n",
-           [[get(c, "source") description] UTF8String],
-           [[get(c, "destination") description] UTF8String]);
-    ENDSECTION
-
-    SECTION("NSNibConnector isEqual")
-    id x = [[connector alloc] init];
-    id y = [[connector alloc] init];
-
-    printf("EMPTY selfEqual=%d twoEmptyEqual=%d\n",
-           [x isEqual: x], [x isEqual: y]);
-
-    put(x, "setSource:", @"s"); put(x, "setDestination:", @"d");
-    put(x, "setLabel:", @"l");
-    put(y, "setSource:", @"s"); put(y, "setDestination:", @"d");
-    put(y, "setLabel:", @"l");
-    printf("SAMEVALUES equal=%d\n", [x isEqual: y]);
-
-    put(y, "setLabel:", @"different");
-    printf("DIFFERENTLABEL equal=%d\n", [x isEqual: y]);
-    ENDSECTION
-
-    SECTION("NSNibConnector establishConnection")
-    id c = [[connector alloc] init];
-
-    @try {
-      [c performSelector: NSSelectorFromString(@"establishConnection")];
-      printf("ESTABLISH ok on an empty one\n");
-    }
-    @catch (NSException *e) { printf("ESTABLISH raised %s\n",
-      [[e name] UTF8String]); }
-    ENDSECTION
-
-    SECTION("NSSharingServicePickerToolbarItem delegate")
-    NSSharingServicePickerToolbarItem *item;
-    id d = [[NSObject alloc] init];
-
-    item = [[NSSharingServicePickerToolbarItem alloc]
-      initWithItemIdentifier: @"share"];
-    printf("INIT nonnil=%d delegate=%s\n", item != nil, nilstr([item delegate]));
-
-    [item setDelegate: (id)d];
-    printf("SET delegateSame=%d\n", [item delegate] == d);
-
-    [item setDelegate: nil];
-    printf("SETNIL delegate=%s\n", nilstr([item delegate]));
-    ENDSECTION
+    printf("\n== setNextState by type (start Off) ==\n");
+    struct { const char *n; NSInteger t; } types[] = {
+      {"MomentaryPushIn", NSMomentaryPushInButton},
+      {"Toggle", NSToggleButton},
+      {"Switch(checkbox)", NSSwitchButton},
+    };
+    for (int i = 0; i < 3; i++)
+      {
+        NSButton *b = [[NSButton alloc] initWithFrame: NSMakeRect(0, 0, 80, 24)];
+        [b setButtonType: (NSButtonType)types[i].t];
+        [b setState: NSOffState];
+        [b setNextState];
+        printf("%-22s setNextState(Off)->%ld\n", types[i].n, (long)[b state]);
+      }
   }
   return 0;
 }
