@@ -5,8 +5,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile and run the AppKit probe
+      - name: Parse the AppKit SDK headers for the public method surface
         run: |
-          clang -Wno-deprecated-declarations -framework Cocoa \
-            Tests/oracle/appkit_probe.m -o appkit_probe
-          ./appkit_probe 2>&1
+          SDK=$(xcrun --sdk macosx --show-sdk-path)
+          echo "SDK=$SDK"
+          python3 Tests/oracle/parse_headers.py \
+            "$SDK/System/Library/Frameworks/AppKit.framework/Headers" \
+            "$SDK/System/Library/Frameworks/AppKit.framework/Versions/C/Headers" 2>&1
