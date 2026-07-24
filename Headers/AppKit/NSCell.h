@@ -675,6 +675,12 @@ APPKIT_EXPORT_CLASS
 - (void) setUsesSingleLineMode: (BOOL)flag;
 - (BOOL) usesSingleLineMode;
 #endif
+#if OS_API_VERSION(MAC_OS_X_VERSION_10_5, GS_API_LATEST)
+- (void) drawWithExpansionFrame: (NSRect)cellFrame inView: (NSView *)view;
+#endif
+#if OS_API_VERSION(MAC_OS_X_VERSION_10_7, GS_API_LATEST)
+- (void) drawFocusRingMaskWithFrame: (NSRect)cellFrame inView: (NSView *)view;
+#endif
 
 //
 // Target and Action

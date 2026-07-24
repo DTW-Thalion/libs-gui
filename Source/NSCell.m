@@ -2924,6 +2924,16 @@ static NSColor *dtxtCol;
   return _cell.uses_single_line_mode;
 }
 
+- (void) drawWithExpansionFrame: (NSRect)cellFrame inView: (NSView *)view
+{
+  [self drawWithFrame: cellFrame inView: view];
+}
+
+- (void) drawFocusRingMaskWithFrame: (NSRect)cellFrame inView: (NSView *)view
+{
+  NSRectFill(cellFrame);
+}
+
 @end
 
 @implementation NSCell (PrivateMethods)
