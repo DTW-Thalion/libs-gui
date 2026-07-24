@@ -63,6 +63,15 @@ main(int argc, const char **argv)
         "the second button returns NSAlertSecondButtonReturn");
       PASS([b2 tag] == NSAlertThirdButtonReturn,
         "the third button returns NSAlertThirdButtonReturn");
+
+      /* The key equivalents let Return trigger the first (default) button and
+         Escape the Cancel button; another button has none. */
+      PASS([[b0 keyEquivalent] isEqual: @"\r"],
+        "the first button answers to Return");
+      PASS([[b1 keyEquivalent] isEqual: @"\033"],
+        "the Cancel button answers to Escape");
+      PASS([[b2 keyEquivalent] length] == 0,
+        "another button has no key equivalent");
     }
   NS_HANDLER
     if ([[localException name] isEqualToString: NSInternalInconsistencyException]
