@@ -1,35 +1,43 @@
-/* Apple oracle: what do the NSButton convenience constructors configure?
-   Portable (compiles under GNUstep too, but the point is the Apple values). */
+/* Apple oracle: config of NSImageView/NSSlider/NSSegmentedControl factories. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
 #import <AppKit/AppKit.h>
 #endif
 #include <stdio.h>
-
-@interface Tgt : NSObject @end
-@implementation Tgt - (void) go: (id)s {} @end
-
-static void dump(const char *name, NSButton *b, Tgt *t)
-{
-  printf("%-14s title='%s' bordered=%d bezel=%ld img=%d state=%ld tgt=%d act='%s'\n",
-    name, [[b title] UTF8String], [b isBordered], (long)[b bezelStyle],
-    [b image] != nil, (long)[b state], [b target] == t,
-    b.action ? sel_getName(b.action) : "(nil)");
-}
+@interface Tg : NSObject @end
+@implementation Tg - (void) go: (id)s {} @end
 
 int main(void)
 {
   @autoreleasepool {
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
-    Tgt *t = [Tgt new];
-    NSImage *img = [NSImage imageNamed: NSImageNameInfo];
-    dump("button/title", [NSButton buttonWithTitle: @"Go" target: t action: @selector(go:)], t);
-    dump("button/img",   [NSButton buttonWithImage: img target: t action: @selector(go:)], t);
-    dump("button/t+i",   [NSButton buttonWithTitle: @"Go" image: img target: t action: @selector(go:)], t);
-    dump("checkbox",     [NSButton checkboxWithTitle: @"Chk" target: t action: @selector(go:)], t);
-    dump("radio",        [NSButton radioButtonWithTitle: @"Rad" target: t action: @selector(go:)], t);
+    Tg *t = [Tg new];
+    NSImage *im = [[NSImage alloc] initWithSize: NSMakeSize(16,16)];
+
+    NSImageView *iv = [NSImageView imageViewWithImage: im];
+    printf("imageView: img=%d editable=%d frameStyle=%ld align=%ld scaling=%ld\n",
+      [iv image] == im, [iv isEditable], (long)[iv imageFrameStyle],
+      (long)[iv imageAlignment], (long)[iv imageScaling]);
+
+    NSSlider *s1 = [NSSlider sliderWithTarget: t action: @selector(go:)];
+    printf("slider/ta: min=%g max=%g val=%g tgt=%d act=%s vertical=%ld\n",
+      [s1 minValue], [s1 maxValue], [s1 doubleValue], [s1 target] == t,
+      s1.action ? sel_getName(s1.action) : "(nil)", (long)[s1 isVertical]);
+
+    NSSlider *s2 = [NSSlider sliderWithValue: 5 minValue: 2 maxValue: 9
+                                      target: t action: @selector(go:)];
+    printf("slider/vmm: min=%g max=%g val=%g tgt=%d\n",
+      [s2 minValue], [s2 maxValue], [s2 doubleValue], [s2 target] == t);
+
+    NSSegmentedControl *sc = [NSSegmentedControl
+      segmentedControlWithLabels: @[@"A", @"B", @"C"]
+      trackingMode: NSSegmentSwitchTrackingSelectOne
+      target: t action: @selector(go:)];
+    printf("segControl: count=%ld label0='%s' mode=%ld tgt=%d sel=%ld\n",
+      (long)[sc segmentCount], [[sc labelForSegment: 0] UTF8String],
+      (long)[sc trackingMode], [sc target] == t, (long)[sc selectedSegment]);
   }
   return 0;
 }
