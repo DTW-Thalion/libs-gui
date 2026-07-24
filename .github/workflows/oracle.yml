@@ -9,4 +9,4 @@ jobs:
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
             Tests/oracle/nscell_expansion_probe.m -o nscell_expansion_probe
-          ./nscell_expansion_probe 2>./nsresponder_held_probe 2>&11
+          ./nscell_expansion_probe 2>&1
