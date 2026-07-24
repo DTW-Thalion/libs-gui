@@ -8,5 +8,5 @@ jobs:
       - name: Compile and run the AppKit probe
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
-            Tests/oracle/nstextview_charshape_probe.m -o nstextview_charshape_probe
-          ./nstextview_charshape_probe 2>&1
+            Tests/oracle/appkit_probe.m -o appkit_probe
+          ./appkit_probe 2>&1
