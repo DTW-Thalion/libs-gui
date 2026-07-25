@@ -1,5 +1,5 @@
-/* Apple oracle: NSCell focusRingMaskBoundsForFrame: and expansionFrameWithFrame:
-   defaults, and whether they depend on the focus ring type. */
+/* Apple oracle: NSCell focusRingMaskBoundsForFrame: with a real view, and for
+   a cell that belongs to a control. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -7,9 +7,9 @@
 #endif
 #include <stdio.h>
 
-static void dumpRing(const char *label, NSCell *c, NSRect f)
+static void dumpRing(const char *label, NSCell *c, NSRect f, NSView *v)
 {
-  NSRect r = [c focusRingMaskBoundsForFrame: f inView: nil];
+  NSRect r = [c focusRingMaskBoundsForFrame: f inView: v];
   printf("%s focusRingMaskBounds = (%g,%g,%g,%g)\n",
     label, r.origin.x, r.origin.y, r.size.width, r.size.height);
 }
@@ -21,20 +21,17 @@ int main(void)
     [NSApplication sharedApplication];
 
     NSRect f = NSMakeRect(10, 20, 30, 40);
+    NSView *view = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 200, 200)];
+
     NSCell *cell = [[NSCell alloc] initTextCell: @"x"];
+    dumpRing("plain-cell nil-view", cell, f, nil);
+    dumpRing("plain-cell real-view", cell, f, view);
 
-    printf("default focusRingType = %ld\n", (long)[cell focusRingType]);
-    dumpRing("default", cell, f);
+    NSButton *button = [[NSButton alloc] initWithFrame: NSMakeRect(0, 0, 30, 40)];
+    dumpRing("button-cell", [button cell], f, button);
 
-    [cell setFocusRingType: NSFocusRingTypeNone];
-    dumpRing("None", cell, f);
-
-    [cell setFocusRingType: NSFocusRingTypeExterior];
-    dumpRing("Exterior", cell, f);
-
-    NSRect e = [cell expansionFrameWithFrame: f inView: nil];
-    printf("expansionFrame = (%g,%g,%g,%g)\n",
-      e.origin.x, e.origin.y, e.size.width, e.size.height);
+    NSTextField *tf = [[NSTextField alloc] initWithFrame: NSMakeRect(0, 0, 30, 40)];
+    dumpRing("textfield-cell", [tf cell], f, tf);
   }
   return 0;
 }
