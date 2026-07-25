@@ -9,4 +9,4 @@ jobs:
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
             Tests/oracle/appkit_probe.m -o appkit_probe
-          ./appkit_probe 2>./probe 2>&11
+          ./appkit_probe 2>&1
