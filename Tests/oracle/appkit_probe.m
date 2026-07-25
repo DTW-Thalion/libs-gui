@@ -1,5 +1,5 @@
-/* Apple oracle: NSMatrix vs NSForm defaults for autosizesCells and
-   tabKeyTraversesCells. */
+/* Apple oracle: NSCell focusRingMaskBoundsForFrame: and expansionFrameWithFrame:
+   defaults, and whether they depend on the focus ring type. */
 #ifdef __APPLE__
 #import <Cocoa/Cocoa.h>
 #else
@@ -7,28 +7,34 @@
 #endif
 #include <stdio.h>
 
+static void dumpRing(const char *label, NSCell *c, NSRect f)
+{
+  NSRect r = [c focusRingMaskBoundsForFrame: f inView: nil];
+  printf("%s focusRingMaskBounds = (%g,%g,%g,%g)\n",
+    label, r.origin.x, r.origin.y, r.size.width, r.size.height);
+}
+
 int main(void)
 {
   @autoreleasepool {
     setvbuf(stdout, NULL, _IONBF, 0);
     [NSApplication sharedApplication];
 
-    NSMatrix *m = [[NSMatrix alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
-    printf("NSMatrix initWithFrame: autosizesCells=%d tabKeyTraversesCells=%d\n",
-      [m autosizesCells], [m tabKeyTraversesCells]);
+    NSRect f = NSMakeRect(10, 20, 30, 40);
+    NSCell *cell = [[NSCell alloc] initTextCell: @"x"];
 
-    NSForm *f1 = [[NSForm alloc] initWithFrame: NSMakeRect(0, 0, 100, 100)];
-    printf("NSForm initWithFrame: autosizesCells=%d tabKeyTraversesCells=%d\n",
-      [f1 autosizesCells], [f1 tabKeyTraversesCells]);
+    printf("default focusRingType = %ld\n", (long)[cell focusRingType]);
+    dumpRing("default", cell, f);
 
-    NSForm *f2 = [[NSForm alloc]
-      initWithFrame: NSMakeRect(0, 0, 100, 100)
-               mode: NSListModeMatrix
-          cellClass: [NSFormCell class]
-       numberOfRows: 2
-    numberOfColumns: 1];
-    printf("NSForm initWithFrame:mode:...: autosizesCells=%d tabKeyTraversesCells=%d\n",
-      [f2 autosizesCells], [f2 tabKeyTraversesCells]);
+    [cell setFocusRingType: NSFocusRingTypeNone];
+    dumpRing("None", cell, f);
+
+    [cell setFocusRingType: NSFocusRingTypeExterior];
+    dumpRing("Exterior", cell, f);
+
+    NSRect e = [cell expansionFrameWithFrame: f inView: nil];
+    printf("expansionFrame = (%g,%g,%g,%g)\n",
+      e.origin.x, e.origin.y, e.size.width, e.size.height);
   }
   return 0;
 }
