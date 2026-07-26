@@ -146,12 +146,17 @@ jobs:
             ${{ env.SRC_PATH }}/config.log
             ${{ env.SRC_PATH }}/Tests/tests.log
 
-  ########### Linux (cairo backend, virtual display) ###########
-  linux-headless:
-    name: Ubuntu x64 Clang gnustep-2.0 (cairo backend, Xvfb)
+  ########### Linux (graphics backends, virtual display) ###########
+  linux-backends:
+    name: Ubuntu x64 Clang gnustep-2.0 (${{ matrix.graphics }} backend, Xvfb)
     runs-on: ubuntu-latest
     # don't run pull requests from local branches twice
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+
+    strategy:
+      fail-fast: false
+      matrix:
+        graphics: [cairo, art, xlib]
 
     env:
       SRC_PATH: ${{ github.workspace }}/source
@@ -180,6 +185,7 @@ jobs:
           # window server can run on a runner with no physical display.
           sudo apt-get -q -y install $APT_PACKAGES $APT_PACKAGES_clang \
             libxt-dev libxmu-dev libxft-dev libxrandr-dev libxfixes-dev libxcursor-dev \
+            libart-2.0-dev \
             xvfb
 
           # gnustep-2.0 runtime requires ld.gold or lld
@@ -197,7 +203,7 @@ jobs:
           ./configure
           make && make install
 
-      - name: Build libs-back # cairo backend, required to run the gui tests instead of skipping them
+      - name: Build libs-back # required to run the gui tests instead of skipping them
         working-directory: ${{env.DEPS_PATH}}
         env:
           LIBS_BACK_BRANCH: ${{github.event.inputs.libs_back_branch}}
@@ -205,7 +211,7 @@ jobs:
           . $INSTALL_PATH/share/GNUstep/Makefiles/GNUstep.sh
           git clone -q -b ${LIBS_BACK_BRANCH:-master} https://github.com/gnustep/libs-back.git
           cd libs-back
-          ./configure --enable-graphics=cairo
+          ./configure --enable-graphics=${{ matrix.graphics }}
           make && make install
 
       - name: Run tests
@@ -222,7 +228,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Logs - Ubuntu x64 Clang gnustep-2.0 (headless)
+          name: Logs - Ubuntu x64 Clang gnustep-2.0 (${{ matrix.graphics }})
           path: |
             ${{ env.SRC_PATH }}/config.log
             ${{ env.SRC_PATH }}/Tests/tests.log
