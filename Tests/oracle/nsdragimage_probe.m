@@ -10,9 +10,9 @@ static void dumpComponents(NSString *what, NSArray *comps)
       NSRect f = [c frame];
       printf("  [%lu] class=%s key=%s contentsClass=%s frame={%g,%g,%g,%g}\n",
              (unsigned long)i,
-             class_getName([c class]),
+             [NSStringFromClass([c class]) UTF8String],
              [[c key] UTF8String],
-             [c contents] ? class_getName([[c contents] class]) : "nil",
+             [c contents] ? [NSStringFromClass([[c contents] class]) UTF8String] : "nil",
              f.origin.x, f.origin.y, f.size.width, f.size.height);
     }
 }
@@ -35,7 +35,7 @@ main(int argc, const char *argv[])
           draggingImageComponentWithKey: NSDraggingImageComponentIconKey];
       NSRect f = [c frame];
       printf("class=%s key=%s contents=%s frame={%g,%g,%g,%g}\n",
-             class_getName([c class]), [[c key] UTF8String],
+             [NSStringFromClass([c class]) UTF8String], [[c key] UTF8String],
              [c contents] ? "set" : "nil",
              f.origin.x, f.origin.y, f.size.width, f.size.height);
 
@@ -50,7 +50,7 @@ main(int argc, const char *argv[])
       NSImage *img = [[NSImage alloc] initWithSize: NSMakeSize(10, 10)];
       [c2 setContents: img];
       printf("after setContents:image -> contents=%s\n",
-             [c2 contents] ? class_getName([[c2 contents] class]) : "nil");
+             [c2 contents] ? [NSStringFromClass([[c2 contents] class]) UTF8String] : "nil");
 
       printf("\n=== NSView draggingImageComponents ===\n");
       NSView *v = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 50, 40)];
