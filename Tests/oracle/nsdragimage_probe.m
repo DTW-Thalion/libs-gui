@@ -52,10 +52,6 @@ main(int argc, const char *argv[])
       printf("after setContents:image -> contents=%s\n",
              [c2 contents] ? [NSStringFromClass([[c2 contents] class]) UTF8String] : "nil");
 
-      printf("\n=== NSView draggingImageComponents ===\n");
-      NSView *v = [[NSView alloc] initWithFrame: NSMakeRect(0, 0, 50, 40)];
-      dumpComponents(@"bare NSView(50x40)", [v draggingImageComponents]);
-
       printf("\n=== NSCollectionViewItem draggingImageComponents ===\n");
       NSCollectionViewItem *item = [[NSCollectionViewItem alloc] init];
       dumpComponents(@"item with NO view set", [item draggingImageComponents]);
