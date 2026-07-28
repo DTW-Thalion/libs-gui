@@ -8,5 +8,5 @@ jobs:
       - name: Compile and run the AppKit probe
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
-            Tests/oracle/appkit_probe.m -o appkit_probe
-          ./appkit_probe 2>&1
+            Tests/oracle/nstoolbar_init_probe.m -o probe
+          ./probe 2>&1
