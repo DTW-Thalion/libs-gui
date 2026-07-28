@@ -64,6 +64,10 @@ int main(void)
   @autoreleasepool
     {
       setbuf(stdout, NULL);
+      Protocol *forceLink = @protocol(NSBrowserDelegate);
+      NSBrowser *b = [[NSBrowser alloc] initWithFrame: NSMakeRect(0,0,100,100)];
+
+      printf("forced protocol %p, browser %p\n", forceLink, b);
       dumpProtocol("NSBrowserDelegate");
       dumpSelectors([NSBrowser class], "tem");
       dumpSelectors([NSBrowser class], "olumn");
