@@ -8,5 +8,5 @@ jobs:
       - name: Compile and run the AppKit probe
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa \
-            Tests/oracle/nstextblock_range_probe.m -o probe
+            Tests/oracle/nsparagraphstyle_isequal_probe.m -o probe
           ./probe 2>&1
