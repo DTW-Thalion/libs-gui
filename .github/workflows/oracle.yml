@@ -5,8 +5,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Show the AppKit NSBrowser delegate declarations
+      - name: Compile and run the AppKit probe
         run: |
-          SDK=$(xcrun --show-sdk-path)
-          sed -n '/@protocol NSBrowserDelegate/,/^@end/p' \
-            "$SDK/System/Library/Frameworks/AppKit.framework/Headers/NSBrowser.h"
+          clang -Wno-deprecated-declarations -framework Cocoa \
+            Tests/oracle/browser_lastcolumn_probe.m -o probe
+          ./probe 2>&1
