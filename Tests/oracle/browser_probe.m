@@ -29,10 +29,11 @@ dumpProtocol(const char *name)
 	    inst ? YES : NO, &count);
 	  for (i = 0; i < count; i++)
 	    {
-	      printf("%s %s %s\n",
-		req ? "required" : "optional",
+	      printf("%s %s %-70s %s\n",
+		req ? "req" : "opt",
 		inst ? "-" : "+",
-		sel_getName(list[i].name));
+		sel_getName(list[i].name),
+		list[i].types ? list[i].types : "(no types)");
 	    }
 	  if (list != NULL)
 	    free(list);
