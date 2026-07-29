@@ -16,17 +16,17 @@ static void dumpKeys(NSPredicateOperatorType type, NSUInteger options,
     propertyListWithData: data options: 0 format: NULL error: NULL];
   NSArray *objects = plist[@"$objects"];
 
-  for (NSUInteger i = 0; i < [objects count]; i++)
+  NSMutableString *keys = [NSMutableString string];
+  NSString *className = @"?";
+
+  for (id entry in objects)
     {
-      id entry = objects[i];
-
-      if ([entry isKindOfClass: [NSDictionary class]]
-        && entry[@"NSOperatorType"] != nil)
+      if (![entry isKindOfClass: [NSDictionary class]])
         {
-          NSMutableString *keys = [NSMutableString string];
-          NSUInteger classIndex = [entry[@"$class"] unsignedIntegerValue];
-          id classEntry = nil;
-
+          continue;
+        }
+      if (entry[@"NSOperatorType"] != nil)
+        {
           for (NSString *k in [[entry allKeys]
                  sortedArrayUsingSelector: @selector(compare:)])
             {
@@ -35,16 +35,14 @@ static void dumpKeys(NSPredicateOperatorType type, NSUInteger options,
                   [keys appendFormat: @"%@=%@ ", k, entry[k]];
                 }
             }
-          if (classIndex < [objects count])
-            {
-              classEntry = objects[classIndex];
-            }
-          printf("  %-22s %-32s %s\n", name,
-                 [[classEntry objectForKey: @"$classname"] UTF8String],
-                 [keys UTF8String]);
-          return;
+        }
+      if ([entry[@"$classes"] containsObject: @"NSPredicateOperator"])
+        {
+          className = entry[@"$classname"];
         }
     }
+  printf("  %-22s %-32s %s\n", name, [className UTF8String],
+         [keys UTF8String]);
 }
 
 int main(int argc, const char **argv)
