@@ -80,7 +80,7 @@ arrow(unichar c)
 }
 
 static void
-send(NSDatePicker *dp, NSEvent *e)
+sendKey(NSDatePicker *dp, NSEvent *e)
 {
   [dp keyDown: e];
 }
@@ -100,9 +100,9 @@ fieldAt(NSDatePickerElementFlags elements, int rights, const char *label)
 
   for (i = 0; i < rights; i++)
     {
-      send(dp, arrow(NSRightArrowFunctionKey));
+      sendKey(dp, arrow(NSRightArrowFunctionKey));
     }
-  send(dp, arrow(NSUpArrowFunctionKey));
+  sendKey(dp, arrow(NSUpArrowFunctionKey));
   printf("  %-40s -> %s\n", label, show(dp));
   [dp removeFromSuperview];
 }
@@ -163,8 +163,8 @@ main(int argc, const char **argv)
       printf("== left arrow from the first field\n");
       {
         NSDatePicker *dp = freshPicker(all);
-        send(dp, arrow(NSLeftArrowFunctionKey));
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSLeftArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  left then up                             -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -174,7 +174,7 @@ main(int argc, const char **argv)
         NSDatePicker *dp = freshPicker(NSDatePickerElementFlagYearMonthDay);
         [dp setLocale: [NSLocale localeWithLocaleIdentifier: @"de_DE"]];
         [dp setDateValue: base];
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  de_DE first field up                     -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -182,27 +182,27 @@ main(int argc, const char **argv)
       printf("== typing digits into the first field (month)\n");
       {
         NSDatePicker *dp = freshPicker(all);
-        send(dp, keyEvent(@"5", 23, NO));
+        sendKey(dp, keyEvent(@"5", 23, NO));
         printf("  typed 5                                  -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
-        send(dp, keyEvent(@"1", 18, NO));
+        sendKey(dp, keyEvent(@"1", 18, NO));
         printf("  typed 1                                  -> %s\n", show(dp));
-        send(dp, keyEvent(@"2", 19, NO));
+        sendKey(dp, keyEvent(@"2", 19, NO));
         printf("  typed 1 then 2                           -> %s\n", show(dp));
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  then up (still on the month?)            -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
-        send(dp, keyEvent(@"0", 29, NO));
+        sendKey(dp, keyEvent(@"0", 29, NO));
         printf("  typed 0                                  -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
-        send(dp, keyEvent(@"9", 25, NO));
-        send(dp, keyEvent(@"9", 25, NO));
+        sendKey(dp, keyEvent(@"9", 25, NO));
+        sendKey(dp, keyEvent(@"9", 25, NO));
         printf("  typed 9 then 9                           -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -211,28 +211,28 @@ main(int argc, const char **argv)
       {
         NSDatePicker *dp = freshPicker(all);
         [dp setDateValue: [fmt dateFromString: @"2023-12-08 20:26:40"]];
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  december, up on the month                -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
         [dp setDateValue: [fmt dateFromString: @"2023-01-08 20:26:40"]];
-        send(dp, arrow(NSDownArrowFunctionKey));
+        sendKey(dp, arrow(NSDownArrowFunctionKey));
         printf("  january, down on the month               -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
         [dp setDateValue: [fmt dateFromString: @"2023-03-31 20:26:40"]];
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  the 31st, up on the month                -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
         [dp setDateValue: [fmt dateFromString: @"2023-03-08 23:26:40"]];
-        send(dp, arrow(NSRightArrowFunctionKey));
-        send(dp, arrow(NSRightArrowFunctionKey));
-        send(dp, arrow(NSRightArrowFunctionKey));
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSRightArrowFunctionKey));
+        sendKey(dp, arrow(NSRightArrowFunctionKey));
+        sendKey(dp, arrow(NSRightArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  23 hours, up on the hour                 -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -241,13 +241,13 @@ main(int argc, const char **argv)
       {
         NSDatePicker *dp = freshPicker(all);
         [dp setMaxDate: [fmt dateFromString: @"2023-03-20 00:00:00"]];
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  up on the month with a max of the 20th   -> %s\n", show(dp));
         [dp removeFromSuperview];
 
         dp = freshPicker(all);
         [dp setMinDate: [fmt dateFromString: @"2023-03-01 00:00:00"]];
-        send(dp, arrow(NSDownArrowFunctionKey));
+        sendKey(dp, arrow(NSDownArrowFunctionKey));
         printf("  down on the month with a min of the 1st  -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -264,13 +264,13 @@ main(int argc, const char **argv)
         [dp setDateValue: [fmt dateFromString: @"2023-05-08 20:26:40"]];
         printf("  actions after setDateValue:              %d (validate calls %d)\n",
                actionCount, r->validateCalls);
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  after one up arrow: value %s actions %d validate %d proposed %s\n",
                show(dp), actionCount, r->validateCalls,
                r->lastProposed ? [[fmt stringFromDate: r->lastProposed] UTF8String]
                                : "(nil)");
         r->forced = [fmt dateFromString: @"1999-09-09 09:09:09"];
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  delegate substitutes a date: value       -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -288,9 +288,9 @@ main(int argc, const char **argv)
         printf("  acceptsFirstResponder=%d firstResponder=%s\n",
                [dp acceptsFirstResponder],
                class_getName([[win firstResponder] class]));
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  up arrow                                 -> %s\n", show(dp));
-        send(dp, arrow(NSRightArrowFunctionKey));
+        sendKey(dp, arrow(NSRightArrowFunctionKey));
         printf("  right arrow                              -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -299,7 +299,7 @@ main(int argc, const char **argv)
       {
         NSDatePicker *dp = freshPicker(all);
         [dp setDatePickerStyle: NSDatePickerStyleTextField];
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  up arrow                                 -> %s\n", show(dp));
         [dp removeFromSuperview];
       }
@@ -335,7 +335,7 @@ main(int argc, const char **argv)
         fflush(stdout);
         [dp mouseDown: downEv];
         printf("  after a click near the left edge: %s\n", show(dp));
-        send(dp, arrow(NSUpArrowFunctionKey));
+        sendKey(dp, arrow(NSUpArrowFunctionKey));
         printf("  then up arrow: %s\n", show(dp));
         fflush(stdout);
       }
