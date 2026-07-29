@@ -83,7 +83,16 @@ int main(int argc, const char **argv)
       printf("  match(name CONTAINS[c] 'x') = %f\n", [t matchForPredicate: match]);
       printf("  match(other > 3)            = %f\n", [t matchForPredicate: other]);
       printf("  match(compound)             = %f\n", [t matchForPredicate: compound]);
-      printf("  match(nil)                  = %f\n", [t matchForPredicate: nil]);
+      @try
+        {
+          NSPredicate *none = nil;
+          printf("  match(nil)                  = %f\n", [t matchForPredicate: none]);
+        }
+      @catch (NSException *e)
+        {
+          printf("  match(nil) raised %s: %s\n", [[e name] UTF8String],
+                 [[e reason] UTF8String]);
+        }
 
       /* 4. setPredicate: then read the views back. */
       [t setPredicate: match];
