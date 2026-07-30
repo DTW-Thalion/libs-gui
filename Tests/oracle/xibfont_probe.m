@@ -134,10 +134,20 @@ main(void)
         }
 
       {
-        NSNib *loaded = [[NSNib alloc]
-                          initWithContentsOfURL: [NSURL fileURLWithPath: nib]];
+        /* -initWithContentsOfURL: raises "Deprecated in 10.8." now. */
+        NSData *nibData = [NSData dataWithContentsOfFile: nib];
+        NSNib *loaded;
         NSArray *top = nil;
-        BOOL ok = [loaded instantiateWithOwner: NSApp topLevelObjects: &top];
+        BOOL ok;
+
+        printf("nib bytes=%lu isDirectory=%d\n",
+               (unsigned long)[nibData length],
+               (int)[[NSFileManager defaultManager]
+                      fileExistsAtPath: nib isDirectory: NULL]);
+        loaded = [[NSNib alloc] initWithNibData: nibData bundle: nil];
+        printf("nib object=%s\n", loaded ? "yes" : "nil");
+        fflush(stdout);
+        ok = [loaded instantiateWithOwner: NSApp topLevelObjects: &top];
 
         printf("instantiated=%d topLevelObjects=%lu\n", ok,
                (unsigned long)[top count]);
