@@ -1,6 +1,12 @@
 /* macOS ground truth for the font and glyph metric assertions. */
 #import <Cocoa/Cocoa.h>
 
+static double
+widthOf(NSFont *f, NSString *s)
+{
+  return (double)[s sizeWithAttributes: @{NSFontAttributeName: f}].width;
+}
+
 static NSGlyph
 layoutGlyph(NSFont *f, NSString *s, unsigned idx)
 {
@@ -34,13 +40,13 @@ main(int argc, char **argv)
       [[big fontName] UTF8String], [[mono fontName] UTF8String]);
 
     /* ---- fontmetrics.m assertions ---- */
-    printf("A empty width      = %g  (expect 0)\n", (double)[f widthOfString: @""]);
-    double wi = [f widthOfString: @"i"], wiiii = [f widthOfString: @"iiii"];
-    double wW = [f widthOfString: @"W"], wWWWW = [f widthOfString: @"WWWW"];
+    printf("A empty width      = %g  (expect 0)\n", widthOf(f, @""));
+    double wi = widthOf(f, @"i"), wiiii = widthOf(f, @"iiii");
+    double wW = widthOf(f, @"W"), wWWWW = widthOf(f, @"WWWW");
     printf("B i=%g iiii=%g (4*i=%g)  W=%g WWWW=%g (4*W=%g)\n",
       wi, wiiii, 4 * wi, wW, wWWWW, 4 * wW);
-    printf("C Wi@14=%g Wi@28=%g (2x=%g)\n", (double)[f widthOfString: @"Wi"],
-      (double)[big widthOfString: @"Wi"], 2 * (double)[f widthOfString: @"Wi"]);
+    printf("C Wi@14=%g Wi@28=%g (2x=%g)\n", widthOf(f, @"Wi"),
+      widthOf(big, @"Wi"), 2 * widthOf(f, @"Wi"));
     printf("D ascender 14=%g 28=%g (2x=%g)\n", (double)[f ascender],
       (double)[big ascender], 2 * (double)[f ascender]);
     printf("E descender 14=%g   maxAdvancement=%g  (>= wW %g?)\n",
@@ -77,9 +83,8 @@ main(int argc, char **argv)
       (double)[mono advancementForGlyph: mi].width,
       (double)[mono advancementForGlyph: mW].width);
     NSGlyph lA = layoutGlyph(f, @"A", 0);
-    printf("M glyphIsEncoded: layoutA(%lu)=%d cast'A'(%lu)=%d\n",
-      (unsigned long)lA, (int)[f glyphIsEncoded: lA],
-      (unsigned long)(NSGlyph)'A', (int)[f glyphIsEncoded: (NSGlyph)'A']);
+    printf("M glyphIsEncoded: not present in this SDK (removed); layoutA=%lu\n",
+      (unsigned long)lA);
   }
   return 0;
 }
