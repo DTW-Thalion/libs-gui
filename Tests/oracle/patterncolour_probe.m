@@ -43,10 +43,16 @@ redPatch(void)
 int
 main(int argc, const char **argv)
 {
+  setbuf(stdout, NULL);   /* unbuffered: the last line printed is where it died */
   @autoreleasepool
     {
-      NSColor *pattern = [NSColor colorWithPatternImage: redPatch()];
+      NSColor *pattern;
       NSColor *conv;
+
+      printf("building the pattern image\n");
+      pattern = [NSColor colorWithPatternImage: redPatch()];
+      printf("pattern colour built            = %s\n",
+             pattern == nil ? "nil" : "ok");
 
       printf("colorSpaceName                  = %s\n",
              [[pattern colorSpaceName] UTF8String]);
@@ -69,14 +75,17 @@ main(int argc, const char **argv)
                [[e name] UTF8String], [[e reason] UTF8String]);
       }
 
-      @try {
-        conv = [pattern colorUsingType: NSColorTypeComponentBased];
-        printf("colorUsingType:ComponentBased   = %s\n",
-               conv == nil ? "nil" : [[conv colorSpaceName] UTF8String]);
-      } @catch (NSException *e) {
-        printf("colorUsingType RAISED %s: %s\n",
-               [[e name] UTF8String], [[e reason] UTF8String]);
-      }
+      if ([pattern respondsToSelector: @selector(colorUsingType:)])
+        {
+          @try {
+            conv = [pattern colorUsingType: NSColorTypeComponentBased];
+            printf("colorUsingType:ComponentBased   = %s\n",
+                   conv == nil ? "nil" : [[conv colorSpaceName] UTF8String]);
+          } @catch (NSException *e) {
+            printf("colorUsingType RAISED %s: %s\n",
+                   [[e name] UTF8String], [[e reason] UTF8String]);
+          }
+        }
 
       @try {
         printf("redComponent                    = %g\n", (double)[pattern redComponent]);
