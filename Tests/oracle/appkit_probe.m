@@ -1,38 +1,67 @@
-/* What an offscreen image starts as, and what a translucent fill leaves. */
+/* What -[NSBitmapImageRep colorAtX:y:] answers when the alpha is zero, and
+ * for the ordinary cases either side of it.
+ */
 #import <Cocoa/Cocoa.h>
 #include <stdio.h>
+#include <math.h>
 
-static void
-dump(NSBitmapImageRep *rep, const char *what)
+static NSBitmapImageRep *
+makeRep(NSBitmapFormat fmt)
 {
-  NSUInteger px[5] = {0, 0, 0, 0, 0};
-
-  if (rep == nil)
-    {
-      printf("%-42s (no rep)\n", what);
-      return;
-    }
-  [rep getPixel: px atX: 10 y: 10];
-  printf("%-42s %3lu %3lu %3lu %3lu   spp=%ld alpha=%d\n", what,
-         (unsigned long)px[0], (unsigned long)px[1], (unsigned long)px[2],
-         (unsigned long)px[3], (long)[rep samplesPerPixel],
-         (int)[rep hasAlpha]);
+  return [[NSBitmapImageRep alloc]
+    initWithBitmapDataPlanes: NULL pixelsWide: 2 pixelsHigh: 2
+                bitsPerSample: 8 samplesPerPixel: 4 hasAlpha: YES
+                     isPlanar: NO colorSpaceName: NSDeviceRGBColorSpace
+                 bitmapFormat: fmt bytesPerRow: 8 bitsPerPixel: 32];
 }
 
-/* Draw into an image with lockFocus and read it back the way the tests do. */
-static NSBitmapImageRep *
-run(void (^body)(int w, int h))
+static const char *
+fmt1(CGFloat v)
 {
-  int w = 20, h = 20;
-  NSImage *img = [[NSImage alloc] initWithSize: NSMakeSize(w, h)];
-  NSBitmapImageRep *rep;
+  static char buf[8][40];
+  static int n = 0;
+  char *b = buf[n++ % 8];
 
-  [img lockFocus];
-  body(w, h);
-  rep = [[NSBitmapImageRep alloc]
-          initWithFocusedViewRect: NSMakeRect(0, 0, w, h)];
-  [img unlockFocus];
-  return rep;
+  if (isnan((double)v))
+    snprintf(b, 40, "NaN");
+  else if (isinf((double)v))
+    snprintf(b, 40, "%sinf", v < 0 ? "-" : "+");
+  else
+    snprintf(b, 40, "%.4f", (double)v);
+  return b;
+}
+
+static void
+probe(const char *what, NSBitmapFormat fmt,
+      NSUInteger r, NSUInteger g, NSUInteger b, NSUInteger a)
+{
+  NSBitmapImageRep *ir = makeRep(fmt);
+  NSUInteger px[5];
+  NSUInteger back[5];
+  NSColor *c;
+
+  px[0] = r; px[1] = g; px[2] = b; px[3] = a;
+  [ir setPixel: px atX: 0 y: 0];
+  [ir getPixel: back atX: 0 y: 0];
+  c = [ir colorAtX: 0 y: 0];
+
+  printf("%-46s stored %3lu %3lu %3lu %3lu -> back %3lu %3lu %3lu %3lu\n",
+         what,
+         (unsigned long)r, (unsigned long)g, (unsigned long)b, (unsigned long)a,
+         (unsigned long)back[0], (unsigned long)back[1],
+         (unsigned long)back[2], (unsigned long)back[3]);
+  if (c == nil)
+    {
+      printf("%-46s   colorAtX:y: = nil\n", "");
+    }
+  else
+    {
+      printf("%-46s   colorAtX:y: space=%s r=%s g=%s b=%s a=%s\n", "",
+             [[c colorSpaceName] UTF8String],
+             fmt1([c redComponent]), fmt1([c greenComponent]),
+             fmt1([c blueComponent]), fmt1([c alphaComponent]));
+    }
+  [ir release];
 }
 
 int
@@ -40,83 +69,22 @@ main(void)
 {
   @autoreleasepool
     {
-      NSBitmapImageRep *rep;
+      printf("=== premultiplied, alpha last (bitmapFormat 0) ===\n");
+      probe("opaque red", 0, 255, 0, 0, 255);
+      probe("half transparent red, premultiplied", 0, 128, 0, 0, 128);
+      probe("ALPHA ZERO with a non zero red", 0, 255, 0, 0, 0);
+      probe("ALPHA ZERO, all zero", 0, 0, 0, 0, 0);
 
-      /* 1. nothing drawn at all */
-      rep = run(^(int w, int h) { });
-      dump(rep, "bare canvas, nothing drawn");
+      printf("\n=== non premultiplied, alpha last ===\n");
+      probe("opaque red", NSAlphaNonpremultipliedBitmapFormat, 255, 0, 0, 255);
+      probe("half transparent red", NSAlphaNonpremultipliedBitmapFormat,
+            255, 0, 0, 128);
+      probe("ALPHA ZERO with a non zero red",
+            NSAlphaNonpremultipliedBitmapFormat, 255, 0, 0, 0);
 
-      /* 2. half-transparent white on the bare canvas */
-      rep = run(^(int w, int h) {
-        [[NSColor colorWithDeviceRed: 1 green: 1 blue: 1 alpha: 0.5] set];
-        NSRectFill(NSMakeRect(0, 0, w, h));
-      });
-      dump(rep, "white 50% on the bare canvas");
-
-      /* 3. opaque red */
-      rep = run(^(int w, int h) {
-        [[NSColor colorWithDeviceRed: 1 green: 0 blue: 0 alpha: 1] set];
-        NSRectFill(NSMakeRect(0, 0, w, h));
-      });
-      dump(rep, "opaque red only");
-
-      /* 4. half-transparent white over opaque red, plain fill */
-      rep = run(^(int w, int h) {
-        [[NSColor colorWithDeviceRed: 1 green: 0 blue: 0 alpha: 1] set];
-        NSRectFill(NSMakeRect(0, 0, w, h));
-        [[NSColor colorWithDeviceRed: 1 green: 1 blue: 1 alpha: 0.5] set];
-        NSRectFill(NSMakeRect(0, 0, w, h));
-      });
-      dump(rep, "white 50% over red, plain fill");
-
-      /* 5. the same through the source-over operator */
-      rep = run(^(int w, int h) {
-        [[NSColor colorWithDeviceRed: 1 green: 0 blue: 0 alpha: 1] set];
-        NSRectFill(NSMakeRect(0, 0, w, h));
-        [[NSColor colorWithDeviceRed: 1 green: 1 blue: 1 alpha: 0.5] set];
-        NSRectFillUsingOperation(NSMakeRect(0, 0, w, h),
-                                 NSCompositingOperationSourceOver);
-      });
-      dump(rep, "white 50% over red, source-over");
-
-      /* 6. a half-transparent grey image composited over black, which is what
-       * the image alpha test builds */
-      {
-        int w = 20, h = 20;
-        NSImage *src = [[NSImage alloc] initWithSize: NSMakeSize(4, 4)];
-
-        [src lockFocus];
-        [[NSColor colorWithDeviceRed: 128 / 255.0 green: 128 / 255.0
-                                blue: 128 / 255.0 alpha: 128 / 255.0] set];
-        NSRectFill(NSMakeRect(0, 0, 4, 4));
-        [src unlockFocus];
-
-        rep = run(^(int cw, int ch) {
-          [[NSColor blackColor] set];
-          NSRectFill(NSMakeRect(0, 0, cw, ch));
-          [src drawInRect: NSMakeRect(0, 0, cw, ch)
-                 fromRect: NSZeroRect
-                operation: NSCompositingOperationSourceOver
-                 fraction: 1.0];
-        });
-        dump(rep, "grey 50% image over black");
-        (void)w; (void)h;
-      }
-
-      /* 7. what the source image itself holds */
-      {
-        NSImage *src = [[NSImage alloc] initWithSize: NSMakeSize(20, 20)];
-        NSBitmapImageRep *srep;
-
-        [src lockFocus];
-        [[NSColor colorWithDeviceRed: 128 / 255.0 green: 128 / 255.0
-                                blue: 128 / 255.0 alpha: 128 / 255.0] set];
-        NSRectFill(NSMakeRect(0, 0, 20, 20));
-        srep = [[NSBitmapImageRep alloc]
-                 initWithFocusedViewRect: NSMakeRect(0, 0, 20, 20)];
-        [src unlockFocus];
-        dump(srep, "grey 50% fill, read straight back");
-      }
+      printf("\n=== premultiplied, alpha FIRST (a,r,g,b order) ===\n");
+      probe("ALPHA ZERO with a non zero red",
+            NSAlphaFirstBitmapFormat, 0, 255, 0, 0);
     }
   return 0;
 }
