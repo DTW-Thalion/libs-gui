@@ -64,6 +64,39 @@ probe(const char *what, NSBitmapFormat fmt,
   [ir release];
 }
 
+static void
+probeWhite(const char *what, NSBitmapFormat fmt, NSUInteger w, NSUInteger a)
+{
+  NSBitmapImageRep *ir = [[NSBitmapImageRep alloc]
+    initWithBitmapDataPlanes: NULL pixelsWide: 2 pixelsHigh: 2
+                bitsPerSample: 8 samplesPerPixel: 2 hasAlpha: YES
+                     isPlanar: NO colorSpaceName: NSDeviceWhiteColorSpace
+                 bitmapFormat: fmt bytesPerRow: 4 bitsPerPixel: 16];
+  NSUInteger px[5];
+  NSUInteger back[5];
+  NSColor *c;
+
+  px[0] = w; px[1] = a;
+  [ir setPixel: px atX: 0 y: 0];
+  [ir getPixel: back atX: 0 y: 0];
+  c = [ir colorAtX: 0 y: 0];
+
+  printf("%-46s stored %3lu %3lu -> back %3lu %3lu\n", what,
+         (unsigned long)w, (unsigned long)a,
+         (unsigned long)back[0], (unsigned long)back[1]);
+  if (c == nil)
+    {
+      printf("%-46s   colorAtX:y: = nil\n", "");
+    }
+  else
+    {
+      printf("%-46s   colorAtX:y: space=%s w=%s a=%s\n", "",
+             [[c colorSpaceName] UTF8String],
+             fmt1([c whiteComponent]), fmt1([c alphaComponent]));
+    }
+  [ir release];
+}
+
 int
 main(void)
 {
@@ -85,6 +118,12 @@ main(void)
       printf("\n=== premultiplied, alpha FIRST (a,r,g,b order) ===\n");
       probe("ALPHA ZERO with a non zero red",
             NSAlphaFirstBitmapFormat, 0, 255, 0, 0);
+
+      printf("\n=== device white, 2 samples, premultiplied ===\n");
+      probeWhite("opaque white", 0, 255, 255);
+      probeWhite("half transparent white, premultiplied", 0, 128, 128);
+      probeWhite("ALPHA ZERO with a non zero white", 0, 255, 0);
+      probeWhite("ALPHA ZERO, all zero", 0, 0, 0);
     }
   return 0;
 }
