@@ -7,6 +7,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compile and run the AppKit probe
         run: |
-          clang -Wno-deprecated-declarations -framework Cocoa -framework CoreGraphics \
-            Tests/oracle/pdfrep2_probe.m -o probe
+          clang -Wno-deprecated-declarations -framework Cocoa \
+            Tests/oracle/patterncolour_probe.m -o probe
           ./probe 2>&1
