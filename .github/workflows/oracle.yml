@@ -8,5 +8,5 @@ jobs:
       - name: Compile and run the AppKit probe
         run: |
           clang -Wno-deprecated-declarations -framework Cocoa -framework CoreGraphics \
-            Tests/oracle/pdfrep_probe.m -o probe
+            Tests/oracle/pdfrep2_probe.m -o probe
           ./probe 2>&1
