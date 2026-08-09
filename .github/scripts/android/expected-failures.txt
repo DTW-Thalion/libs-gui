@@ -1,0 +1,55 @@
+# libs-gui tests that cannot pass on Android under the headless backend.
+#
+# The headless backend draws nothing: every DPS primitive in
+# HeadlessGState is an empty body and HeadlessFontEnumerator finds no
+# font.  These tests need a backend that rasterizes, so they are
+# expected to fail until an Android backend exists.
+#
+# Each entry was measured against a Linux control running the SAME
+# libs-gui commit and the SAME headless backend commit, so the only
+# variable is the platform.  A test listed here fails or skips on Linux
+# too.  A test NOT listed here that fails is a regression.
+#
+# On Linux most of these skip cleanly, because the drawing attempt
+# raises and the test's own guard catches it.  On Android nothing
+# raises, so the test runs on and fails an assertion instead.
+
+NSApplication/applicationIconImage
+NSAttributedString/headIndentDrawing
+NSBox/rendering
+NSButton/rendering
+NSClipView/rendering
+NSColorPanel/render
+NSColorWell/rendering
+NSControl/rendering
+NSDatePicker/rendering
+NSDrawer/render
+NSFontPanel/config
+NSFontPanel/render
+NSForm/rendering
+NSImageView/rendering
+NSLevelIndicator/rendering
+NSMatrix/click
+NSMatrix/rendering
+NSOpenPanel/render
+NSOutlineView/rendering
+NSProgressIndicator/rendering
+NSSavePanel/render
+NSScrollView/rendering
+NSSegmentedControl/rendering
+NSSlider/interact
+NSSlider/rendering
+NSSplitView/rendering
+NSSplitViewController/render
+NSStackView/rendering
+NSStepper/interact
+NSTabView/rendering
+NSTabViewController/render
+NSTableView/click
+NSTableView/rendering
+NSTextField/rendering
+NSTextView/cursorRectInvalidation
+NSView/rendering
+NSWindow/frameContent
+NSWindow/windowRender
+NSWindowController/lifecycle
