@@ -1,24 +1,31 @@
-# libs-gui tests that cannot pass on Android under the headless backend.
+# libs-gui tests that cannot pass under the headless backend.
 #
-# The headless backend draws nothing: every DPS primitive in
-# HeadlessGState is an empty body and HeadlessFontEnumerator finds no
-# font.  These tests need a backend that rasterizes, so they are
-# expected to fail until an Android backend exists.
+# None of these is an Android problem.  Every entry was reproduced on Linux
+# with the same headless backend, at the same libs-gui and libs-back commits,
+# and fails there with the same counts.  The backend is the variable, not the
+# platform.
 #
-# Each entry was measured against a Linux control running the SAME
-# libs-gui commit and the SAME headless backend commit, so the only
-# variable is the platform.  A test listed here fails or skips on Linux
-# too.  A test NOT listed here that fails is a regression.
+# HeadlessFontEnumerator finds no font, so every text measurement is zero:
+# -advancementForGlyph: gives {0, 0}, -ascender and -descender give 0, and
+# -sizeWithAttributes: gives {0, 0}.  Anything that measures or lays out text
+# therefore fails.  HeadlessGState implements 6 of the 28 primitives GSGState
+# declares as subclassResponsibility, so the other 22 raise
+# NSInvalidArgumentException when a drawing path reaches them.
 #
-# On Linux most of these skip cleanly, because the drawing attempt
-# raises and the test's own guard catches it.  On Android nothing
-# raises, so the test runs on and fails an assertion instead.
+# A test listed here fails on any headless build.  A test NOT listed here that
+# fails is a regression.
 
+GSHorizontalTypesetter/longRun
+GSHorizontalTypesetter/paragraphSpacing
 NSApplication/applicationIconImage
 NSAttributedString/headIndentDrawing
 NSBox/rendering
+NSBrowser/drop
 NSButton/rendering
+NSCell/drawingDefaults
+NSCell/integralSize
 NSClipView/rendering
+NSCollectionViewItem/draggingimage
 NSColorPanel/render
 NSColorWell/rendering
 NSControl/rendering
@@ -27,6 +34,7 @@ NSDrawer/render
 NSFontPanel/config
 NSFontPanel/render
 NSForm/rendering
+NSFormCell/title
 NSImageView/rendering
 NSLevelIndicator/rendering
 NSMatrix/click
@@ -35,8 +43,10 @@ NSOpenPanel/render
 NSOutlineView/rendering
 NSProgressIndicator/rendering
 NSSavePanel/render
+NSSavePanel/setDelegate_reload
 NSScrollView/rendering
 NSSegmentedControl/rendering
+NSSegmentedControl/sizeToFit
 NSSlider/interact
 NSSlider/rendering
 NSSplitView/rendering
