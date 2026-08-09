@@ -8,9 +8,10 @@
 # HeadlessFontEnumerator finds no font, so every text measurement is zero:
 # -advancementForGlyph: gives {0, 0}, -ascender and -descender give 0, and
 # -sizeWithAttributes: gives {0, 0}.  Anything that measures or lays out text
-# therefore fails.  HeadlessGState implements 6 of the 28 primitives GSGState
-# declares as subclassResponsibility, so the other 22 raise
-# NSInvalidArgumentException when a drawing path reaches them.
+# therefore fails.  HeadlessGState implements 8 of the 26 primitives GSGState
+# declares as subclassResponsibility, so the other 18 raise
+# NSInvalidArgumentException when a drawing path reaches them.  libs-back #232
+# implements those 18.
 #
 # A test listed here fails on any headless build.  A test NOT listed here that
 # fails is a regression.
