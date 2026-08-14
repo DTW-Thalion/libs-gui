@@ -132,6 +132,24 @@ def main():
     for name in ("NSSpellServer", "NSTextAttachmentCell", "NSFileWrapper"):
         print(f"  sentinel {name}: "
               f"{len(classes.get(name, {}).get('methods', []))} methods")
+
+    # For every header that contributed nothing: what does it actually declare?
+    # Comparing the @interface lines in the file against what was extracted
+    # separates "this header holds only protocols and constants" from "the
+    # parse lost a class".
+    print("\n=== what the non-contributing headers declare")
+    for h in missed:
+        text = open(os.path.join(appkit, h), errors="replace").read()
+        ifaces = [l.strip()[:78] for l in text.splitlines()
+                  if l.startswith("@interface")]
+        protos = sum(1 for l in text.splitlines() if l.startswith("@protocol"))
+        got = sum(len(classes.get(l.split()[1].split("(")[0].split(":")[0],
+                                  {}).get("methods", []))
+                  for l in ifaces) if ifaces else 0
+        print(f"  {h}: {len(ifaces)} @interface, {protos} @protocol, "
+              f"{got} methods now held for those classes")
+        for l in ifaces[:4]:
+            print(f"        {l}")
     if errs:
         print("REFUSING: the parse reported errors, so the extraction is "
               "not trustworthy")
