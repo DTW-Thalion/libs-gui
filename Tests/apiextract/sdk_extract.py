@@ -59,7 +59,7 @@ def _availability(cursor):
     return introduced, deprecated
 
 
-def _method(cursor):
+def _method(cursor, category=None):
     introduced, deprecated = _availability(cursor)
     kind = "class" if cursor.kind == CURSOR_CLASS_METHOD else "instance"
     return {
@@ -68,6 +68,12 @@ def _method(cursor):
         "introduced": introduced,
         "deprecated": deprecated,
         "origin": os.path.basename(str(cursor.location.file)),
+        # The declaring category, or None for the class's own interface.
+        # AppKit puts its informal delegate protocols in categories on
+        # NSObject, and without this there is no mechanical way to tell
+        # -[NSObject panel:isValidFilename:], which nothing implements
+        # anywhere, from -[NSObject awakeFromNib], which is real API.
+        "category": category,
     }
 
 
@@ -97,7 +103,7 @@ def _attribute_value(toks, keyword):
     return None
 
 
-def _property_methods(cursor):
+def _property_methods(cursor, category=None):
     """A property is API as its accessors, which is what the runtime sees.
 
     `getter=` and `setter=` rename those accessors, and the renamed form is the
@@ -113,7 +119,7 @@ def _property_methods(cursor):
 
     getter = _attribute_value(toks, "getter") or name
     out = [{"selector": getter, "kind": kind, "introduced": introduced,
-            "deprecated": deprecated, "origin": origin}]
+            "deprecated": deprecated, "origin": origin, "category": category}]
     if "readonly" not in set(toks):
         setter = _attribute_value(toks, "setter")
         if setter is None:
@@ -121,7 +127,8 @@ def _property_methods(cursor):
         elif not setter.endswith(":"):
             setter += ":"
         out.append({"selector": setter, "kind": kind, "introduced": introduced,
-                    "deprecated": deprecated, "origin": origin})
+                    "deprecated": deprecated, "origin": origin,
+                    "category": category})
     return out
 
 
@@ -187,6 +194,7 @@ def extract_headers(header_paths, sdk_path, only_dir, protocol_as_class=None,
                 continue
             if not _in_scope(cursor, only_dirs):
                 continue
+            category = None
             if kind == CURSOR_PROTOCOL:
                 mapped = protocol_as_class.get(cursor.spelling)
                 if mapped is None:
@@ -198,6 +206,7 @@ def extract_headers(header_paths, sdk_path, only_dir, protocol_as_class=None,
                     (c.spelling for c in cursor.get_children()
                      if _kind(c) == CURSOR_SUPERCLASS), None)
             else:
+                category = cursor.spelling or None
                 # A category names its class with an OBJC_CLASS_REF child; the
                 # category's own spelling is the category name, not the class.
                 ref = next((c.spelling for c in cursor.get_children()
@@ -212,9 +221,9 @@ def extract_headers(header_paths, sdk_path, only_dir, protocol_as_class=None,
             for child in cursor.get_children():
                 child_kind = _kind(child)
                 if child_kind in (CURSOR_CLASS_METHOD, CURSOR_INSTANCE_METHOD):
-                    found = [_method(child)]
+                    found = [_method(child, category)]
                 elif child_kind == CURSOR_PROPERTY:
-                    found = _property_methods(child)
+                    found = _property_methods(child, category)
                 else:
                     continue
                 for m in found:
