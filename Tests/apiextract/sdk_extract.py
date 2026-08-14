@@ -85,6 +85,19 @@ def _property_methods(cursor):
     return out
 
 
+def _kind(cursor):
+    """Cursor kind, or None when these bindings do not recognise it.
+
+    A newer libclang than the bindings emits kind ids their table lacks, and
+    `cursor.kind` then raises instead of returning something inert. Xcode 26.6
+    does exactly this, so every kind read goes through here.
+    """
+    try:
+        return cursor.kind
+    except ValueError:
+        return None
+
+
 def _in_scope(cursor, only_dir):
     loc = cursor.location.file
     if loc is None:
@@ -110,20 +123,21 @@ def extract_headers(header_paths, sdk_path, only_dir):
         tu = index.parse(path, args=args,
                          options=ci.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES)
         for cursor in tu.cursor.walk_preorder():
-            if cursor.kind not in (CURSOR_CLASS, CURSOR_CATEGORY):
+            kind = _kind(cursor)
+            if kind not in (CURSOR_CLASS, CURSOR_CATEGORY):
                 continue
             if not _in_scope(cursor, only_dir):
                 continue
-            if cursor.kind == CURSOR_CLASS:
+            if kind == CURSOR_CLASS:
                 name = cursor.spelling
                 superclass = next(
                     (c.spelling for c in cursor.get_children()
-                     if c.kind == CURSOR_SUPERCLASS), None)
+                     if _kind(c) == CURSOR_SUPERCLASS), None)
             else:
                 # A category names its class with an OBJC_CLASS_REF child; the
                 # category's own spelling is the category name, not the class.
                 ref = next((c.spelling for c in cursor.get_children()
-                            if c.kind == CURSOR_CLASS_REF), None)
+                            if _kind(c) == CURSOR_CLASS_REF), None)
                 if ref is None:
                     continue
                 name, superclass = ref, None
@@ -132,9 +146,10 @@ def extract_headers(header_paths, sdk_path, only_dir):
                 entry["superclass"] = superclass
             seen = {(m["selector"], m["kind"]) for m in entry["methods"]}
             for child in cursor.get_children():
-                if child.kind in (CURSOR_CLASS_METHOD, CURSOR_INSTANCE_METHOD):
+                child_kind = _kind(child)
+                if child_kind in (CURSOR_CLASS_METHOD, CURSOR_INSTANCE_METHOD):
                     found = [_method(child)]
-                elif child.kind == CURSOR_PROPERTY:
+                elif child_kind == CURSOR_PROPERTY:
                     found = _property_methods(child)
                 else:
                     continue
