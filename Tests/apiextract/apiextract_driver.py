@@ -62,18 +62,14 @@ def main():
     for h in missed:
         print("   ", h)
 
-    # Second pass: parse each unreached header on its own, so a header AppKit.h
-    # does not import is still measured rather than silently dropped.
-    if missed:
-        extra = "/tmp/appkit_missed.m"
-        with open(extra, "w") as f:
-            for h in missed:
-                f.write(f'#import <AppKit/{h}>\n')
-        try:
-            more = extract_headers([extra], sdk, [appkit])
-        except Exception as exc:                       # a header may not stand alone
-            print("pass 2 umbrella failed:", exc)
-            more = {}
+    # Second pass: pick up whatever AppKit.h does not import.
+    #
+    # Each missed header is imported AFTER <AppKit/AppKit.h> and parsed on its
+    # own. Importing it bare is what made the first attempt at this wrong:
+    # NSSpellServer.h cannot resolve its own dependencies alone, clang gives up
+    # on the declarations, and the class silently vanished from a run that
+    # otherwise looked healthy.
+    def merge(more):
         added = 0
         for name, entry in more.items():
             tgt = classes.setdefault(name, {"superclass": None, "methods": []})
@@ -85,7 +81,38 @@ def main():
                     tgt["methods"].append(m)
                     seen.add((m["selector"], m["kind"]))
                     added += 1
-        print(f"pass 2 added {added} methods")
+        return added
+
+    total_added = 0
+    for h in missed:
+        one = "/tmp/appkit_one.m"
+        with open(one, "w") as f:
+            f.write("#import <AppKit/AppKit.h>\n")
+            f.write(f"#import <AppKit/{h}>\n")
+        try:
+            n = merge(extract_headers([one], sdk, [appkit]))
+        except Exception as exc:
+            print(f"  pass 2 FAILED on {h}: {exc}")
+            continue
+        total_added += n
+        if n:
+            print(f"  pass 2 {h}: +{n}")
+    print(f"pass 2 added {total_added} methods")
+
+    # A parse that fails quietly is the one failure mode that would corrupt
+    # every verdict downstream, so the errors are counted and shown.
+    check = "/tmp/appkit_check.m"
+    with open(check, "w") as f:
+        f.write("#import <AppKit/AppKit.h>\n")
+        for h in missed:
+            f.write(f"#import <AppKit/{h}>\n")
+    tu = ci.Index.create().parse(
+        check, args=["-x", "objective-c", "-isysroot", sdk],
+        options=ci.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES)
+    errs = [d for d in tu.diagnostics if d.severity >= ci.Diagnostic.Error]
+    print(f"clang errors across AppKit.h plus every missed header: {len(errs)}")
+    for d in errs[:10]:
+        print("   ", d.spelling, "|", d.location)
 
     doc = {
         "tier": "apple",
