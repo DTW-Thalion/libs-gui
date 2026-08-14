@@ -5,19 +5,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract the public Foundation API from the SDK headers
+      - name: Compile and run the AppKit probe
         run: |
-          set -x
-          SDK=$(xcrun --show-sdk-path)
-          FW="$SDK/System/Library/Frameworks/Foundation.framework/Headers"
-          ls "$FW" | head -5
-          ls "$FW"/*.h | wc -l
-          python3 -m pip install --quiet --break-system-packages libclang
-          cd Tests/apiextract
-          python3 run_extract.py "$SDK" "$FW" "$GITHUB_WORKSPACE/reference-apple.json"
-          wc -c "$GITHUB_WORKSPACE/reference-apple.json"
-      - name: Upload the extracted reference
-        uses: actions/upload-artifact@v4
-        with:
-          name: reference-apple
-          path: reference-apple.json
+          clang -Wno-deprecated-declarations -framework Cocoa \
+            Tests/oracle/plusdarker2_probe.m -o probe
+          ./probe 2>&1
