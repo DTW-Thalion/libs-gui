@@ -35,12 +35,25 @@ def sdk_path():
                           text=True, check=True).stdout.strip()
 
 
+def resource_dir():
+    """The real toolchain's clang resource directory.
+
+    The pip libclang wheel has none of its own, so without this stdarg.h is
+    not found and whole headers parse to nothing.
+    """
+    return subprocess.run(["clang", "-print-resource-dir"], capture_output=True,
+                          text=True, check=True).stdout.strip()
+
+
 def main():
     out_path = sys.argv[1]
     sdk = sdk_path()
     appkit = os.path.join(sdk, "System/Library/Frameworks/AppKit.framework/Headers")
+    builtins = os.path.join(resource_dir(), "include")
+    EXTRA = ["-isystem", builtins]
     print("SDK:      ", sdk)
     print("AppKit:   ", appkit)
+    print("builtins: ", builtins, "exists:", os.path.isdir(builtins))
 
     headers = sorted(h for h in os.listdir(appkit) if h.endswith(".h"))
     print("headers on disk:", len(headers))
@@ -51,7 +64,7 @@ def main():
     umbrella = "/tmp/appkit_umbrella.m"
     with open(umbrella, "w") as f:
         f.write("#import <AppKit/AppKit.h>\n")
-    classes = extract_headers([umbrella], sdk, [appkit])
+    classes = extract_headers([umbrella], sdk, [appkit], extra_args=EXTRA)
     origins = {m["origin"] for e in classes.values() for m in e["methods"]}
     print(f"pass 1: {len(classes)} classes, "
           f"{sum(len(e['methods']) for e in classes.values())} methods, "
@@ -90,7 +103,7 @@ def main():
             f.write("#import <AppKit/AppKit.h>\n")
             f.write(f"#import <AppKit/{h}>\n")
         try:
-            n = merge(extract_headers([one], sdk, [appkit]))
+            n = merge(extract_headers([one], sdk, [appkit], extra_args=EXTRA))
         except Exception as exc:
             print(f"  pass 2 FAILED on {h}: {exc}")
             continue
@@ -107,12 +120,22 @@ def main():
         for h in missed:
             f.write(f"#import <AppKit/{h}>\n")
     tu = ci.Index.create().parse(
-        check, args=["-x", "objective-c", "-isysroot", sdk],
+        check, args=["-x", "objective-c", "-isysroot", sdk] + EXTRA,
         options=ci.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES)
     errs = [d for d in tu.diagnostics if d.severity >= ci.Diagnostic.Error]
     print(f"clang errors across AppKit.h plus every missed header: {len(errs)}")
     for d in errs[:10]:
         print("   ", d.spelling, "|", d.location)
+
+    # A class the specification names must not be missing because the parse
+    # gave up. This is the check that caught the stdarg.h failure.
+    for name in ("NSSpellServer", "NSTextAttachmentCell", "NSFileWrapper"):
+        print(f"  sentinel {name}: "
+              f"{len(classes.get(name, {}).get('methods', []))} methods")
+    if errs:
+        print("REFUSING: the parse reported errors, so the extraction is "
+              "not trustworthy")
+        sys.exit(1)
 
     doc = {
         "tier": "apple",

@@ -146,7 +146,8 @@ def _in_scope(cursor, only_dirs):
     return any(path.startswith(d) for d in only_dirs)
 
 
-def extract_headers(header_paths, sdk_path, only_dir, protocol_as_class=None):
+def extract_headers(header_paths, sdk_path, only_dir, protocol_as_class=None,
+                    extra_args=None):
     """Parse the given headers, returning the schema's `classes` mapping.
 
     `only_dir` is a directory or a list of them; only declarations located
@@ -164,6 +165,12 @@ def extract_headers(header_paths, sdk_path, only_dir, protocol_as_class=None):
     args = ["-x", "objective-c"]
     if sdk_path:
         args += ["-isysroot", sdk_path]
+    # The pip `libclang` wheel ships no builtin headers, so stdarg.h and
+    # friends are not found, the header that includes them fails, and every
+    # declaration after it is silently dropped. Passing the real toolchain's
+    # resource directory is what makes the parse complete; without it
+    # NSSpellServer disappeared from an AppKit run that otherwise looked fine.
+    args += list(extra_args or [])
     if isinstance(only_dir, str):
         only_dir = [only_dir]
     only_dirs = [os.path.abspath(d) for d in only_dir]
